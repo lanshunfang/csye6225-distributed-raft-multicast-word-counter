@@ -1,15 +1,22 @@
 package multicast
 
 import (
+	"fmt"
 	"net"
+	"strings"
+	"wordcounter/config"
 )
+
+var messageTopicPayloadSplitter = "___||___"
 
 type Sender struct {
 	conn *net.UDPConn
 }
 
-func (s *Sender) Send(msg string) {
-	s.conn.Write([]byte(msg))
+type MulticastListener func(string, string, string, *net.UDPAddr)
+
+func (s *Sender) Send(topic string, payload string) {
+	s.conn.Write([]byte(topic + messageTopicPayloadSplitter + payload))
 }
 
 // GetSenderHandler ...
@@ -43,7 +50,7 @@ func GetSender(multicastGroup string) Sender {
 // 			fmt.Print("Received Message: " + msg + " From IP " + ip)
 //		})
 //		```
-func Register(multicastGroup string, callback func(string, string, *net.UDPAddr)) {
+func Register(multicastGroup string, callback MulticastListener) {
 	udpBufferSize := 1024 * 10
 	addr, err := net.ResolveUDPAddr("udp4", multicastGroup)
 	if err != nil {
@@ -66,7 +73,14 @@ func Register(multicastGroup string, callback func(string, string, *net.UDPAddr)
 		}
 
 		sourceIP := source.IP.String()
-		callback(string(buffer[:numBytes]), sourceIP, source)
+		msg := strings.Split(string(buffer[:numBytes]), messageTopicPayloadSplitter)
+		msgLen := len(msg)
+		_, ok := config.MulticastTopics[msg[0]]
+		if msgLen != 2 || !ok {
+			fmt.Println("[WARN] Received unknown message", msg)
+			continue
+		}
+		callback(msg[0], msg[1], sourceIP, source)
 
 	}
 }

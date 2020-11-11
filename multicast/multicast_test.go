@@ -10,23 +10,27 @@ import (
 )
 
 func TestSendReceive(T *testing.T) {
-	var messageGot string
+	var messageTopic string = "SomeTopic"
+	var messageTopicGot string
 	var messageSend string = "Hi"
+	var messageGot string
 	go Register(
 		"239.0.0.1:10000",
-		func(msg string, ip string, source *net.UDPAddr) {
-			fmt.Print("Received Message: " + msg + " From IP " + ip)
-			messageGot = msg
+		func(topic string, payload string, ip string, source *net.UDPAddr) {
+			messageTopicGot = topic
+			fmt.Print("Received Message: " + payload + " From IP " + ip)
+			messageGot = payload
 		},
 	)
 
 	time.Sleep(2 * time.Second)
 
 	sender := GetSender("239.0.0.1:10000")
-	sender.Send(messageSend)
+	sender.Send(messageTopic, messageSend)
 
 	time.Sleep(5 * time.Second)
 
-	assert.Equal(T, messageSend, messageGot, "The Message ")
+	assert.Equal(T, messageTopic, messageTopicGot, "The topic received should be equal to the topic sent")
+	assert.Equal(T, messageSend, messageGot, "The message received should be equal to the message sent")
 
 }
