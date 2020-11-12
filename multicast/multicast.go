@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"wordcounter/config"
 )
 
 var messageTopicPayloadSplitter = "___||___"
@@ -14,6 +13,11 @@ type Sender struct {
 }
 
 type MulticastListener func(string, string, string, *net.UDPAddr)
+
+var MulticastTopics = map[string]string{
+	"JOIN_GROUP": "JOIN_GROUP",
+	"SYNC_GROUP": "SYNC_GROUP",
+}
 
 func (s *Sender) Send(topic string, payload string) {
 	s.conn.Write([]byte(topic + messageTopicPayloadSplitter + payload))
@@ -46,7 +50,7 @@ func GetSender(multicastGroup string) Sender {
 // @param multicastGroup - See #GetSender
 // @example
 //		```golang
-//		multicast.Register("239.0.0.1:10000", func (msg string, ip string, source *net.UDPAddr) {
+//		multicast.Register("239.0.0.1:10000", func (msg string, ip string, UDPAddr *net.UDPAddr) {
 // 			fmt.Print("Received Message: " + msg + " From IP " + ip)
 //		})
 //		```
@@ -75,7 +79,7 @@ func Register(multicastGroup string, callback MulticastListener) {
 		sourceIP := source.IP.String()
 		msg := strings.Split(string(buffer[:numBytes]), messageTopicPayloadSplitter)
 		msgLen := len(msg)
-		_, ok := config.MulticastTopics[msg[0]]
+		_, ok := MulticastTopics[msg[0]]
 		if msgLen != 2 || !ok {
 			fmt.Println("[WARN] Received unknown message", msg)
 			continue

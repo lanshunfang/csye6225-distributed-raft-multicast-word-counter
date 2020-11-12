@@ -2,70 +2,95 @@ package clustering
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
-	"wordcounter/config"
+	"strconv"
+	"time"
 	"wordcounter/multicast"
 )
 
 type clusterMember struct {
-	IsLeader  bool
-	Term      int32
+	ID        string
+	Term      int
 	IP        string
 	LogOffset int64
 }
 
+// MyID ...
+// Node ID
+var MyID string = strconv.Itoa(rand.Int())
+
 // clusterMemberMap ...
 var clusterMemberMap = struct {
-	IsInCluster: bool
-	Leader    clusterMember
-	Followers map[string]clusterMember
+	Leader  clusterMember
+	Members map[string]clusterMember
 }{
-	IsInCluster: false
 	Leader: clusterMember{},
-	// map[ip]clusterMember
-	Followers: make(map[string]clusterMember),
+	// map[nodeId]clusterMember
+	Members: make(map[string]clusterMember),
 }
 
 func joinGroup() {
-	if !clusterMemberMap.IsInCluster {
-		requestJoinGroup()
+
+	maxAttempt := 10
+
+	for ; maxAttempt > 0; maxAttempt-- {
+		_, ok := clusterMemberMap.Members[MyID]
+		if !ok {
+			requestJoinGroup()
+		} else {
+			return
+		}
+
+		time.Sleep(5 * time.Second)
 	}
+
+	panic("[ERROR] Unable to join Group after max attempts")
+
 }
 func requestJoinGroup() {
-	multicastAddr := config.GetEnvMulticastGroup()
-	sender := multicast.GetSender("239.0.0.1:10000")
-	sender.Send(messageTopic, messageSend)
+	SendMulticast(multicast.MulticastTopics["JOIN_GROUP"], MyID)
 }
 
-func updateGroup(ip string) {
-	clusterMemberMap.Followers[ip] = clusterMember{IP: ip}
+func isIAmLeader() bool {
+	return clusterMemberMap.Leader.ID == MyID
 }
 
-func listenMulticast() {
-	multicastAddr := config.GetEnvMulticastGroup()
-	fmt.Println("[INFO] Listen UDP multicast for service discovery in " + multicastAddr)
-	go multicast.Register(
-		multicastAddr,
-		func(topic string, payload string, ip string, source *net.UDPAddr) {
-			fmt.Println("[INFO]Received topic: " + topic + " From IP " + ip)
-			getMessageHandler(topic, payload)
-		},
-	)
-}
+func leaderAllowJoinGroup(nodeID, ip string) {
 
-func ListenMulticast(listener *multicast.MulticastListener) {
-	
-}
-
-func getMessageHandler(topic, payload string) {
-	handlerMap := map[string]func(string){
-		"JOIN_GROUP": updateGroup,
+	if !isIAmLeader() {
+		return
 	}
 
-	handlerMap[topic](payload)
+	for key, node := range clusterMemberMap.Members {
+		if node.IP == ip {
+			delete(clusterMemberMap.Members, key)
+		}
+	}
+	clusterMemberMap.Members[nodeID] = clusterMember{IP: ip, ID: nodeID}
+}
+
+func leaderSyncGroup() {
+	if !isIAmLeader() {
+		return
+	}
+
+	SendMulticast(multicast.MulticastTopics["SYNC_GROUP"], MyID)
+
+}
+
+func memberAllowSyncGroup(requestLeaderId, group string) {
+	// require go-rpc package
 }
 
 func init() {
 	fmt.Println("[INFO] Init clustering")
-	listenMulticast()
+	ListenMulticast(
+		multicast.MulticastTopics["JOIN_GROUP"],
+		func(nodeID string, ip string, UDPAddr *net.UDPAddr) {
+			leaderAllowJoinGroup(nodeID, ip)
+		},
+	)
+
+	go joinGroup()
 }

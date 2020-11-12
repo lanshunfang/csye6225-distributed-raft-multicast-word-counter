@@ -16,7 +16,7 @@ func TestSendReceive(T *testing.T) {
 	var messageGot string
 	go Register(
 		"239.0.0.1:10000",
-		func(topic string, payload string, ip string, source *net.UDPAddr) {
+		func(topic string, payload string, ip string, UDPAddr *net.UDPAddr) {
 			messageTopicGot = topic
 			fmt.Print("Received Message: " + payload + " From IP " + ip)
 			messageGot = payload

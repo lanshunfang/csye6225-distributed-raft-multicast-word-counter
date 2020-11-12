@@ -12,7 +12,3 @@ func GetEnvMulticastGroup() string {
 	}
 	return env
 }
-
-var MulticastTopics = map[string]string{
-	"JOIN_GROUP": "JOIN_GROUP",
-}
