@@ -14,7 +14,7 @@ var multicastAddr *string
 func SendMulticast(topic, msg string) {
 
 	if sender == nil {
-		envAddr := config.GetEnvMulticastGroup()
+		envAddr := config.Envs["ENV_MULTICAST_GROUP"]
 		multicastAddr = &envAddr
 		senderGot := multicast.GetSender(*multicastAddr)
 		sender = &senderGot
@@ -25,7 +25,7 @@ func SendMulticast(topic, msg string) {
 
 func ListenMulticast(topic string, listener func(nodeID string, ip string, UDPAddr *net.UDPAddr)) {
 	if multicastAddr == nil {
-		envAddr := config.GetEnvMulticastGroup()
+		envAddr := config.Envs["ENV_MULTICAST_GROUP"]
 		multicastAddr = &envAddr
 	}
 

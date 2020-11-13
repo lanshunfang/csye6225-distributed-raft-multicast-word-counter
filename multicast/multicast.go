@@ -15,8 +15,18 @@ type Sender struct {
 type MulticastListener func(string, string, string, *net.UDPAddr)
 
 var MulticastTopics = map[string]string{
-	"JOIN_GROUP": "JOIN_GROUP",
-	"SYNC_GROUP": "SYNC_GROUP",
+	"JOIN_GROUP":       "JOIN_GROUP",
+	"ELECT_LEADER":     "ELECT_LEADER",
+	"LEADER_HEARTBEAT": "LEADER_HEARTBEAT",
+}
+
+const payloadFieldSplitter string = "|"
+
+func JoinFields(fields ...string) string {
+	return strings.Join(fields, payloadFieldSplitter)
+}
+func GetFields(joinedFields string) []string {
+	return strings.Split(joinedFields, payloadFieldSplitter)
 }
 
 func (s *Sender) Send(topic string, payload string) {
