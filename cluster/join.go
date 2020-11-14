@@ -7,7 +7,9 @@ import (
 	"wordcounter/multicast"
 )
 
-func joinGroup() {
+// JoinGroup ...
+// Join Cluster group
+func JoinGroup() {
 
 	maxAttempt := 10
 
@@ -24,9 +26,10 @@ func joinGroup() {
 		time.Sleep(5 * time.Second)
 	}
 
-	panic("[ERROR] Unable to join Group after max attempts")
+	fmt.Print("[ERROR] Unable to join Group after max attempts")
 
 }
+
 func requestJoinGroup() {
 	SendMulticast(multicast.MulticastTopics["JOIN_GROUP"], MyNodeID)
 }
@@ -50,6 +53,4 @@ func init() {
 			leaderAllowJoinGroup(nodeID, ip)
 		},
 	)
-
-	go joinGroup()
 }

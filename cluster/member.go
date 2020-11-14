@@ -24,6 +24,7 @@ type MemberList map[string]Member
 // MyNodeID ...
 // Node ID
 var MyNodeID string = strconv.Itoa(rand.Int())
+var MyLogOffset int
 
 type Membership struct {
 	Leader  *Member

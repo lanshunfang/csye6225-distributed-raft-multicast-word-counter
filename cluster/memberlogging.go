@@ -80,9 +80,10 @@ func (l *RaftLikeLogger) commitLog() {
 	}
 	dataEncoder := gob.NewEncoder(dataFile)
 	dataEncoder.Encode(l.Logpipe)
+	updateMemberLogOffset()
 	defer dataFile.Close()
 }
-func (l *RaftLikeLogger) loadLog() {
+func LoadLog() {
 	// open data file
 	dataFile, err := os.Open(logfilePath)
 
@@ -94,7 +95,7 @@ func (l *RaftLikeLogger) loadLog() {
 	}
 
 	dataDecoder := gob.NewDecoder(dataFile)
-	err = dataDecoder.Decode(&l.Logpipe)
+	err = dataDecoder.Decode(&raftLikeLogger.Logpipe)
 
 	if err != nil {
 		fmt.Println(err)
@@ -102,6 +103,8 @@ func (l *RaftLikeLogger) loadLog() {
 	}
 
 	dataFile.Close()
+
+	updateMemberLogOffset()
 
 	fmt.Printf("[INFO] Loaded log data from file %s", logfilePath)
 }
@@ -207,6 +210,14 @@ func (l *RaftLikeLogger) AppendLog(oplog Oplog, replyValidOffset *int) error {
 	l.appendOplog(oplog)
 
 	return nil
+}
+
+func updateMemberLogOffset() {
+	lastLog, err := raftLikeLogger.GetLastOplog()
+	if err == nil {
+		MyLogOffset = lastLog.LogOffset
+	}
+
 }
 
 func GetLogger() RaftLikeLogger {

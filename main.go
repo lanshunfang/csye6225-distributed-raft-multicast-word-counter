@@ -1,8 +1,7 @@
 package distributed
 
 import (
-	"fmt"
-	"os"
+	"wordcounter/cluster"
 )
 
 func main() {
@@ -11,6 +10,8 @@ func main() {
 	// 	os.Setenv("ENV_MULTICAST_GROUP", defaultmulticast)
 	// }
 
-	fmt.Println("ENV_MULTICAST_GROUP:", os.Getenv("ENV_MULTICAST_GROUP"))
+	cluster.LoadLog()
+	cluster.JoinGroup()
+	cluster.ElectMeIfLeaderDie()
 
 }
