@@ -1,4 +1,4 @@
-package clustering
+package cluster
 
 import (
 
@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"wordcounter/config"
 	"wordcounter/rpc"
 )
 
@@ -32,18 +33,11 @@ type Membership struct {
 
 var myMembership = &Membership{}
 
-func getMembership() Membership {
+func GetMembership() Membership {
 	return *myMembership
 }
 func getLeader() Member {
 	return myMembership.Leader
-}
-
-func ForEachMember(callback func(member Member, isLeader bool)) {
-
-	for key, value := range myMembership.Members {
-		callback(value, key == myMembership.Leader.ID)
-	}
 }
 
 func IsLeader(nodeID, ip string) bool {
@@ -60,6 +54,23 @@ func getMyself() Member {
 
 func IsIAmLeader() bool {
 	return myMembership.Leader.ID == MyNodeID
+}
+
+func (m *Membership) ReportLeaderIP(payload interface{}, replyLeaderIP *string) error {
+	ip := m.Leader.IP
+
+	if ip == "" {
+		return errors.New("[ERROR] Unable to fetch IP. Please retry")
+	}
+	*replyLeaderIP = ip
+	return nil
+}
+
+func (m *Membership) ForEachMember(callback func(member Member, isLeader bool)) {
+
+	for key, value := range myMembership.Members {
+		callback(value, key == myMembership.Leader.ID)
+	}
 }
 
 func (m *Membership) AddNewMember(nodeID, ip string) bool {
@@ -125,8 +136,7 @@ func callRPCSyncMember(m *Membership, ip string) error {
 	responseNodeID := ""
 	err := rpc.CallRPC(
 		ip,
-		"ENV_PORT_MEMBERSHIP_SYNC",
-		"Membership.UpdateMemberList",
+		config.HttpRpcList["Membership.UpdateMemberList"].Name,
 		m.Members,
 		&responseNodeID,
 	)
@@ -142,12 +152,12 @@ func NewMembership() Membership {
 	}
 }
 
-func createRpcServer() {
-
-	membership := NewMembership()
-	rpc.RegisterRPC(membership, "ENV_PORT_MEMBERSHIP_SYNC")
+func (membership *Membership) rpcRegister() {
+	rpc.RegisterType(membership)
 }
 
 func init() {
-	createRpcServer()
+	membership := NewMembership()
+	membership.rpcRegister()
+
 }

@@ -6,12 +6,57 @@ import (
 
 var Envs = map[string]string{
 	"ENV_MULTICAST_GROUP": "239.0.0.1:10000",
+	"ENV_RPC_PORT":        "8080",
 }
 
-var EnvPorts = map[string]string{
-	"ENV_PORT_MEMBERSHIP_SYNC": "10001",
-	"ENV_PORT_LOGGER_SYNC":     "10002",
-	"ENV_PORT_TASK_WORDCOUNT":  "10003",
+// var EnvPorts = map[string]string{
+
+// 	"ENV_PORT_MEMBERSHIP": "8080",
+
+// 	"ENV_PORT_LOGGER":    "10002",
+// 	"ENV_PORT_WORDCOUNT": "8081",
+// }
+
+type RPCDef struct {
+	Name string
+	Port string
+}
+
+var HttpRpcList = map[string]RPCDef{
+	"WordCount": {
+		Name: "WordCount",
+		Port: "ENV_PORT_WORDCOUNT",
+	},
+	"WordCount.Count": {
+		Name: "WordCount.Count",
+		Port: "ENV_PORT_WORDCOUNT",
+	},
+	"WordCount.HTTPHandle": {
+		Name: "WordCount.HTTPHandle",
+		Port: "ENV_PORT_WORDCOUNT",
+	},
+
+	"Membership": {
+		Name: "Membership",
+		Port: "ENV_PORT_MEMBERSHIP",
+	},
+	"Membership.UpdateMemberList": {
+		Name: "Membership.UpdateMemberList",
+		Port: "ENV_PORT_MEMBERSHIP",
+	},
+	"Membership.ReportLeaderIP": {
+		Name: "Membership.ReportLeaderIP",
+		Port: "ENV_PORT_MEMBERSHIP",
+	},
+
+	"RaftLikeLogger": {
+		Name: "RaftLikeLogger",
+		Port: "ENV_PORT_LOGGER",
+	},
+	"RaftLikeLogger.AppendLog": {
+		Name: "RaftLikeLogger.AppendLog",
+		Port: "ENV_PORT_LOGGER",
+	},
 }
 
 func initEnvs(defaultMap map[string]string) {
@@ -27,6 +72,6 @@ func initEnvs(defaultMap map[string]string) {
 }
 
 func init() {
-	initEnvs(EnvPorts)
+	// initEnvs(EnvPorts)
 	initEnvs(Envs)
 }

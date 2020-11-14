@@ -1,4 +1,4 @@
-package clustering
+package cluster
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ func joinGroup() {
 
 	maxAttempt := 10
 
-	membership := getMembership()
+	membership := GetMembership()
 
 	for ; maxAttempt > 0; maxAttempt-- {
 		_, ok := membership.Members[MyNodeID]
@@ -37,13 +37,13 @@ func leaderAllowJoinGroup(nodeID, ip string) {
 		return
 	}
 
-	membership := getMembership()
+	membership := GetMembership()
 	membership.AddNewMember(nodeID, ip)
 
 }
 
 func init() {
-	fmt.Println("[INFO] Init clustering")
+	fmt.Println("[INFO] Init cluster")
 	ListenMulticast(
 		multicast.MulticastTopics["JOIN_GROUP"],
 		func(nodeID string, ip string, UDPAddr *net.UDPAddr) {

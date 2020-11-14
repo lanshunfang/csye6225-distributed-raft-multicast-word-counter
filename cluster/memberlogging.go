@@ -1,4 +1,4 @@
-package clustering
+package cluster
 
 import (
 
@@ -12,12 +12,13 @@ import (
 	"sync"
 	"time"
 
+	"wordcounter/config"
 	"wordcounter/rpc"
 )
 
 type Oplog struct {
 	RPCMethod string
-	Payload   []byte
+	Payload   interface{}
 	LogOffset int
 	Timestamp string
 }
@@ -32,17 +33,42 @@ var logfilePath string = "./oplog.gob"
 
 var logfileLock sync.Mutex
 
+func (l *RaftLikeLogger) GetLastOplog() (Oplog, error) {
+	lenLogpipe := len(l.Logpipe)
+	if lenLogpipe < 1 {
+		return Oplog{}, errors.New("[WARN] There are no any logs found")
+	}
+
+	return l.Logpipe[lenLogpipe-1], nil
+}
+
 func (l *RaftLikeLogger) appendOplog(log Oplog) {
 	l.Logpipe = append(l.Logpipe, log)
 	l.commitLog()
 }
-func (l *RaftLikeLogger) AppendOplog(log Oplog) {
+func (l *RaftLikeLogger) AppendOplog(payload string) Oplog {
 	if !IsIAmLeader() {
 		fmt.Println("[WARN] Only allow Leader to append log directly")
 		return
 	}
+
+	logOffset := 0
+
+	lastLog, err := l.GetLastOplog()
+
+	if err == nil {
+		logOffset = lastLog.LogOffset + 1
+	}
+
+	log := Oplog{
+		RPCMethod: config.HttpRpcList["RaftLikeLogger.AppendLog"].Name,
+		Payload:   []byte(payload),
+		Timestamp: time.Now().String(),
+		LogOffset: logOffset,
+	}
 	l.appendOplog(log)
 	l.syncOplogs()
+	return log
 }
 
 func (l *RaftLikeLogger) commitLog() {
@@ -80,7 +106,7 @@ func (l *RaftLikeLogger) loadLog() {
 	fmt.Printf("[INFO] Loaded log data from file %s", logfilePath)
 }
 
-func (l *RaftLikeLogger) getOplogByOffset(offset int) (Oplog, error) {
+func (l *RaftLikeLogger) GetOplogByOffset(offset int) (Oplog, error) {
 
 	for lastIdx := len(l.Logpipe) - 1; lastIdx > 0; lastIdx-- {
 		cursor := l.Logpipe[lastIdx]
@@ -105,7 +131,9 @@ func (l *RaftLikeLogger) syncOplogs() {
 		return
 	}
 
-	ForEachMember(
+	membership := GetMembership()
+
+	membership.ForEachMember(
 		func(member Member, isLeader bool) {
 
 			if isLeader {
@@ -113,7 +141,7 @@ func (l *RaftLikeLogger) syncOplogs() {
 			}
 
 			maxattempt := lenLogData - 1
-			oplog, err := l.getOplogByOffset(lenLogData - 1)
+			oplog, err := l.GetOplogByOffset(lenLogData - 1)
 
 			if err != nil {
 				return
@@ -130,13 +158,13 @@ func (l *RaftLikeLogger) syncOplogs() {
 					break
 				}
 
-				oplog, err := l.getOplogByOffset(validLogOffset)
+				oplog, err := l.GetOplogByOffset(validLogOffset)
 
 				if err != nil {
 					return
 				}
 
-				err = callRPCSyncLog(oplog, member.IP, &validLogOffset)
+				err = l.callRPCSyncLog(oplog, member.IP, &validLogOffset)
 				if err == nil {
 					break
 				}
@@ -181,22 +209,24 @@ func (l *RaftLikeLogger) AppendLog(oplog Oplog, replyValidOffset *int) error {
 	return nil
 }
 
-func NewLogger() RaftLikeLogger {
+func GetLogger() RaftLikeLogger {
+	return raftLikeLogger
+}
+
+func newLogger() RaftLikeLogger {
 	raftLikeLogger = RaftLikeLogger{}
 	return raftLikeLogger
 }
 
-func RPCServeLeaderSyncLog() {
-
-	rpc.RegisterRPC(raftLikeLogger, "ENV_PORT_LOGGER_SYNC")
+func (l *RaftLikeLogger) rpcRegister() {
+	rpc.RegisterType(l)
 }
 
-func callRPCSyncLog(oplog Oplog, ip string, replyValidOffset *int) error {
+func (l *RaftLikeLogger) callRPCSyncLog(oplog Oplog, ip string, replyValidOffset *int) error {
 
 	err := rpc.CallRPC(
 		ip,
-		"ENV_PORT_MEMBERSHIP_SYNC",
-		"RaftLikeLogger.AppendLog",
+		config.HttpRpcList["RaftLikeLogger.AppendLog"].Name,
 		oplog,
 		&replyValidOffset,
 	)
@@ -205,6 +235,7 @@ func callRPCSyncLog(oplog Oplog, ip string, replyValidOffset *int) error {
 }
 
 func init() {
-	raftLikeLogger = NewLogger()
+	raftLikeLogger = newLogger()
+	raftLikeLogger.rpcRegister()
 	raftLikeLogger.syncOplogs()
 }
