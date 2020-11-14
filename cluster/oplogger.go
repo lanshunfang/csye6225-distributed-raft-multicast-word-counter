@@ -2,8 +2,6 @@ package cluster
 
 import (
 
-	// "crypto/rand"
-
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -167,6 +165,10 @@ func (l *RaftLikeLogger) syncLogForMember(member Member) {
 	maxattempt := 3
 	lenLogData := len(l.Logpipe)
 
+	if lenLogData < 1 {
+		return
+	}
+
 	oplog, err := l.GetOplogByOffset(lenLogData - 1)
 
 	if err != nil {
@@ -196,6 +198,7 @@ func (l *RaftLikeLogger) syncLogForMember(member Member) {
 			oplog, err := l.GetOplogByOffset(validLogOffset)
 
 			if err != nil {
+				fmt.Printf("[WARN] The log offset %s is invalid", validLogOffset)
 				return
 			}
 
@@ -208,13 +211,16 @@ func (l *RaftLikeLogger) syncLogForMember(member Member) {
 					continue
 				}
 
+			} else {
+
+				fmt.Println(errMsg + ". Retry. Max attempts left: " + strconv.Itoa(maxattempt))
+
+				maxattempt--
+	
+				time.Sleep(100 * time.Millisecond)
+
 			}
 
-			fmt.Println(errMsg + ". Retry. Max attempts left: " + strconv.Itoa(maxattempt))
-
-			maxattempt--
-
-			time.Sleep(100 * time.Millisecond)
 		}
 
 		l.updateSyncing(member, false)
@@ -228,6 +234,13 @@ func (l *RaftLikeLogger) AppendLog(oplog Oplog, replyValidOffset *int) error {
 		return errors.New(
 			fmt.Sprintf("[ERROR] I am leader. Do not accept new log from RPC. My NodeId %s, my IP %s", myself.ID, myself.IP),
 		)
+	}
+
+	checkIfExistLog, err := l.GetOplogByOffset(oplog.LogOffset)
+
+	if err == nil {
+		fmt.Printf("[WARN] I have the log already. MyID: %s, MyIP: %s", myself.ID, myself.IP),
+		return nil
 	}
 
 	acceptableMaxLogoffset := l.getCachedLatestOplog() + 1
