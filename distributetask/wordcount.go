@@ -20,7 +20,7 @@ type CountDescriptor struct {
 
 func (wc *WordCount) countIt(desc CountDescriptor) (int, error) {
 	logger := cluster.GetLogger()
-	oplog, err := logger.GetOplogByOffset(desc.logOffset)
+	oplog, err := cluster.GetOplogByOffset(&logger, desc.logOffset)
 	if err != nil {
 		return 0, err
 	}
@@ -64,18 +64,25 @@ func (wc *WordCount) rpcRegister() {
 	rpc.RegisterType(wc)
 }
 
+// HTTPHandle ...
+// HTTP outlet for client incoming word counting request
 func (wc *WordCount) HTTPHandle(text string, reply *int) error {
 
 	logger := cluster.GetLogger()
-	oplog := logger.AppendOplog(text)
 
-	*reply = wc.Runtask(oplog)
+	oplog, err := cluster.AppendOplog(&logger, &text)
+
+	if err != nil {
+		return err
+	}
+
+	*reply = runtask(wc, oplog)
 
 	return nil
 
 }
 
-func (wc *WordCount) Runtask(oplog cluster.Oplog) int {
+func runtask(wc *WordCount, oplog cluster.Oplog) int {
 	membership := cluster.GetMembership()
 	countMembers := len(membership.Members)
 	payloadBytes := []byte(fmt.Sprintf("%v", oplog.Payload))
@@ -89,7 +96,8 @@ func (wc *WordCount) Runtask(oplog cluster.Oplog) int {
 
 	var wg sync.WaitGroup
 
-	membership.ForEachMember(
+	cluster.ForEachMember(
+		membership,
 		func(member cluster.Member, isLeader bool) {
 
 			wg.Add(1)

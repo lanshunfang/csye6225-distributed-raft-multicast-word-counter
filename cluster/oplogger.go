@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"wordcounter/config"
+	"wordcounter/osextend"
 	"wordcounter/rpc"
 )
 
@@ -21,7 +22,7 @@ type Oplog struct {
 }
 
 type RaftLikeLogger struct {
-	Logpipe []Oplog
+	Logstack []Oplog
 }
 
 var raftLikeLogger RaftLikeLogger
@@ -33,26 +34,30 @@ var logfileLock sync.Mutex
 var oplogSyncing map[string]bool
 
 func (l *RaftLikeLogger) getLatestOplog() (Oplog, error) {
-	lenLogpipe := len(l.Logpipe)
-	if lenLogpipe < 1 {
+	lenLogstack := len(l.Logstack)
+	if lenLogstack < 1 {
 		return Oplog{}, errors.New("[WARN] There are no any logs found")
 	}
 
-	return l.Logpipe[lenLogpipe-1], nil
+	return l.Logstack[lenLogstack-1], nil
 }
 
 func (l *RaftLikeLogger) getCachedLatestOplog() int {
 	return myLogOffset
 }
 
-func (l *RaftLikeLogger) appendOplog(log Oplog) {
-	l.Logpipe = append(l.Logpipe, log)
-	l.commitLog()
+func appendOplog(l *RaftLikeLogger, log Oplog) {
+	l.Logstack = append(l.Logstack, log)
+	commitLog(l)
 }
-func (l *RaftLikeLogger) AppendOplog(payload string) Oplog {
-	if !IsIAmLeader() {
-		fmt.Println("[WARN] Only allow Leader to append log directly")
-		return Oplog{}
+
+// AppendOplog ...
+// Append oplog to log pipe
+func AppendOplog(l *RaftLikeLogger, payload *string) (Oplog, error) {
+	if !isIAmLeader() {
+		errMsg := "[WARN] Only allow Leader to append log directly"
+		fmt.Println(errMsg)
+		return Oplog{}, errors.New(errMsg)
 	}
 
 	logOffset := 0
@@ -65,29 +70,40 @@ func (l *RaftLikeLogger) AppendOplog(payload string) Oplog {
 
 	log := Oplog{
 		RPCMethod: config.HttpRpcList["RaftLikeLogger.AppendLog"].Name,
-		Payload:   []byte(payload),
+		Payload:   []byte(*payload),
 		Timestamp: time.Now().String(),
 		LogOffset: logOffset,
 	}
-	l.appendOplog(log)
+	appendOplog(l, log)
 	syncLog()
-	return log
+	return log, nil
 }
 
-func (l *RaftLikeLogger) commitLog() {
+func commitLog(l *RaftLikeLogger) {
 	logfileLock.Lock()
 	defer logfileLock.Unlock()
-	dataFile, err := os.Create(logfilePath)
+
+	dataFile, err := os.OpenFile(
+		logfilePath,
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0644,
+	)
 	if err != nil {
-		fmt.Printf("[ERROR] Create log failed. File path %s", logfilePath)
+		fmt.Printf("[ERROR] Open/Create log failed. File path %s", logfilePath)
 	}
 	dataEncoder := gob.NewEncoder(dataFile)
-	dataEncoder.Encode(l.Logpipe)
+	dataEncoder.Encode(l.Logstack)
 	updateMemberLogOffset()
 	defer dataFile.Close()
 }
 func (l *RaftLikeLogger) loadLog() {
 	// open data file
+	isFileExist := osextend.FileExists(logfilePath)
+	if !isFileExist {
+		fmt.Printf("[WARN] Log loading skipped. Reason: log file doesn't exist at path %s", logfilePath)
+		return
+	}
+
 	dataFile, err := os.Open(logfilePath)
 
 	if err != nil {
@@ -98,7 +114,8 @@ func (l *RaftLikeLogger) loadLog() {
 	}
 
 	dataDecoder := gob.NewDecoder(dataFile)
-	err = dataDecoder.Decode(l.Logpipe)
+
+	err = dataDecoder.Decode(&l.Logstack)
 
 	if err != nil {
 		fmt.Println(err)
@@ -112,10 +129,12 @@ func (l *RaftLikeLogger) loadLog() {
 	fmt.Printf("[INFO] Loaded log data from file %s", logfilePath)
 }
 
-func (l *RaftLikeLogger) GetOplogByOffset(offset int) (Oplog, error) {
+// GetOplogByOffset ...
+// Get oplog by its offset
+func GetOplogByOffset(l *RaftLikeLogger, offset int) (Oplog, error) {
 
-	for lastIdx := len(l.Logpipe) - 1; lastIdx > 0; lastIdx-- {
-		cursor := l.Logpipe[lastIdx]
+	for lastIdx := len(l.Logstack) - 1; lastIdx > 0; lastIdx-- {
+		cursor := l.Logstack[lastIdx]
 		if cursor.LogOffset == offset {
 			return cursor, nil
 		}
@@ -134,41 +153,47 @@ func (l *RaftLikeLogger) updateSyncing(member Member, state bool) {
 
 func (l *RaftLikeLogger) syncOplogs() {
 
-	if !IsIAmLeader() {
+	if !isIAmLeader() {
 		fmt.Println("[WARN] Only allow Leader to sync members")
 		return
 	}
 
-	if len(l.Logpipe) < 1 {
+	if len(l.Logstack) < 1 {
 		fmt.Println("[INFO] No log data found")
 		return
 	}
 
 	membership := GetMembership()
 
-	membership.ForEachMember(
+	var wg sync.WaitGroup
+
+	ForEachMember(
+		membership,
 		func(member Member, isLeader bool) {
 
 			if isLeader {
 				return
 			}
 
-			l.syncLogForMember(member)
+			l.syncLogForMember(member, &wg)
+
 		},
 	)
 
+	wg.Wait()
+
 }
 
-func (l *RaftLikeLogger) syncLogForMember(member Member) {
+func (l *RaftLikeLogger) syncLogForMember(member Member, wg *sync.WaitGroup) {
 
 	maxattempt := 3
-	lenLogData := len(l.Logpipe)
+	lenLogData := len(l.Logstack)
 
 	if lenLogData < 1 {
 		return
 	}
 
-	oplog, err := l.GetOplogByOffset(lenLogData - 1)
+	oplog, err := GetOplogByOffset(l, lenLogData-1)
 
 	if err != nil {
 		return
@@ -178,9 +203,12 @@ func (l *RaftLikeLogger) syncLogForMember(member Member) {
 
 	validLogOffset := oplog.LogOffset
 
+	wg.Add(1)
+
 	go func() {
 
 		if l.isSyncing(member) {
+			wg.Done()
 			return
 		}
 
@@ -194,11 +222,11 @@ func (l *RaftLikeLogger) syncLogForMember(member Member) {
 				break
 			}
 
-			oplog, err := l.GetOplogByOffset(validLogOffset)
+			oplog, err := GetOplogByOffset(l, validLogOffset)
 
 			if err != nil {
 				fmt.Printf("[WARN] The log offset %s is invalid", validLogOffset)
-				return
+				break
 			}
 
 			err = l.callRPCSyncLog(oplog, member.IP, &validLogOffset)
@@ -224,18 +252,21 @@ func (l *RaftLikeLogger) syncLogForMember(member Member) {
 
 		l.updateSyncing(member, false)
 
+		wg.Done()
+
 	}()
+
 }
 
 func (l *RaftLikeLogger) AppendLog(oplog Oplog, replyValidOffset *int) error {
 	myself := getMyself()
-	if IsIAmLeader() {
+	if isIAmLeader() {
 		return errors.New(
 			fmt.Sprintf("[ERROR] I am leader. Do not accept new log from RPC. My NodeId %s, my IP %s", myself.ID, myself.IP),
 		)
 	}
 
-	_, err := l.GetOplogByOffset(oplog.LogOffset)
+	_, err := GetOplogByOffset(l, oplog.LogOffset)
 
 	if err == nil {
 		fmt.Printf(
@@ -258,7 +289,7 @@ func (l *RaftLikeLogger) AppendLog(oplog Oplog, replyValidOffset *int) error {
 			fmt.Printf("[WARN] The log offset in leader may be smaller than mine. MyID: %s, MyIP: %s", myself.ID, myself.IP)
 
 		}
-		l.appendOplog(oplog)
+		appendOplog(l, oplog)
 	}
 
 	return nil

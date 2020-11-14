@@ -130,7 +130,7 @@ func voteResultSend(requestTerm int, requestLeaderNodeId string, voteResult int)
 func leaderSendHeartBeat() {
 	go func() {
 		for {
-			if IsIAmLeader() {
+			if isIAmLeader() {
 				SendMulticast(multicast.MulticastTopics["LEADER_HEARTBEAT"], MyNodeID)
 			}
 			time.Sleep(heartbeatFrequency)

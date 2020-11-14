@@ -57,7 +57,7 @@ func updateMeAsLeaderForNewTerm(newTerm int) {
 		v.Term = newTerm
 	}
 
-	myMembership.SyncMemberList()
+	syncMemberList(myMembership)
 
 }
 
@@ -65,8 +65,15 @@ func getMyself() *Member {
 	return myMembership.Members[MyNodeID]
 }
 
-func IsIAmLeader() bool {
+func isIAmLeader() bool {
+	if isLeaderNil() {
+		return false
+	}
 	return myMembership.Leader.ID == MyNodeID
+}
+
+func isLeaderNil() bool {
+	return myMembership.Leader == nil
 }
 
 func (m *Membership) ReportLeaderIP(payload interface{}, replyLeaderIP *string) error {
@@ -79,16 +86,18 @@ func (m *Membership) ReportLeaderIP(payload interface{}, replyLeaderIP *string) 
 	return nil
 }
 
-func (m *Membership) ForEachMember(callback func(member Member, isLeader bool)) {
+// ForEachMember ...
+// For each member (including leader) in the membership, run the call back
+func ForEachMember(m *Membership, callback func(member Member, isLeader bool)) {
 
 	for key, value := range myMembership.Members {
 		callback(*value, key == myMembership.Leader.ID)
 	}
 }
 
-func (m *Membership) AddNewMember(nodeID, ip string) bool {
+func addNewMember(m *Membership, nodeID, ip string) bool {
 
-	if !IsIAmLeader() {
+	if !isIAmLeader() {
 		fmt.Println("[WARN] Only allow Leader to add new member")
 		return false
 	}
@@ -98,7 +107,7 @@ func (m *Membership) AddNewMember(nodeID, ip string) bool {
 		}
 	}
 	m.Members[nodeID] = &Member{IP: ip, ID: nodeID}
-	m.SyncMemberList()
+	syncMemberList(m)
 	return true
 }
 
@@ -109,11 +118,11 @@ func (m *Membership) UpdateMembership(newMembership Membership, replyNodeID *str
 	return nil
 }
 
-func (m *Membership) SyncMemberList() error {
+func syncMemberList(m *Membership) {
 
-	if !IsIAmLeader() {
+	if !isIAmLeader() {
 		fmt.Println("[WARN] Only allow Leader to sync members")
-		return nil
+		return
 	}
 
 	for key, value := range m.Members {
@@ -126,7 +135,7 @@ func (m *Membership) SyncMemberList() error {
 			if maxattempt <= 0 {
 				errMsg := "[ERROR] Fail in perform SyncMemberList to node `" + key + "` with IP: " + value.IP + ". Max retry reached. Skip."
 				fmt.Println(errMsg)
-				return errors.New(errMsg)
+				return
 			}
 
 			err := callRPCSyncMembership(m, value.IP)
@@ -143,7 +152,6 @@ func (m *Membership) SyncMemberList() error {
 
 	}
 
-	return nil
 }
 
 func callRPCSyncMembership(m *Membership, ip string) error {

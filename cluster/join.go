@@ -11,13 +11,14 @@ import (
 // Join Cluster group
 func JoinGroup() {
 
-	maxAttempt := 10
+	maxAttempt := 5
 
 	membership := GetMembership()
 
 	for ; maxAttempt > 0; maxAttempt-- {
 		_, ok := membership.Members[MyNodeID]
 		if !ok {
+			fmt.Printf("[INFO] Start to join group. Attempts left %v", maxAttempt)
 			requestJoinGroup()
 		} else {
 			return
@@ -36,12 +37,12 @@ func requestJoinGroup() {
 
 func leaderAllowJoinGroup(nodeID, ip string) {
 
-	if !IsIAmLeader() {
+	if !isIAmLeader() {
 		return
 	}
 
 	membership := GetMembership()
-	membership.AddNewMember(nodeID, ip)
+	addNewMember(membership, nodeID, ip)
 	syncLog()
 
 }
