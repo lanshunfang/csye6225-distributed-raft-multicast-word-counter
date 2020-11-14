@@ -2,16 +2,15 @@ package distributed
 
 import (
 	"wordcounter/cluster"
+	"wordcounter/distributetask"
 )
 
 func main() {
 
-	// if os.Getenv("ENV_MULTICAST_GROUP") == "" {
-	// 	os.Setenv("ENV_MULTICAST_GROUP", defaultmulticast)
-	// }
-
-	cluster.LoadLog()
-	cluster.JoinGroup()
-	cluster.ElectMeIfLeaderDie()
+	cluster.StartRaftLogService()
+	cluster.StartMembershipService()
+	cluster.StartJoinGroupService()
+	cluster.StartLeaderElectionService()
+	distributetask.StartWordCountService()
 
 }

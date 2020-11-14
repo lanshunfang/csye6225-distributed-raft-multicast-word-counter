@@ -129,7 +129,7 @@ func (wc *WordCount) callRPC(ip string, logOffset int) (int, error) {
 	return replyWordCount, err
 }
 
-func init() {
+func StartWordCountService() {
 	wc := NewWordCount()
 	wc.rpcRegister()
 }

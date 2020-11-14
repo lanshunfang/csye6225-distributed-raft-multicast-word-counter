@@ -36,7 +36,7 @@ func getNewTerm() int {
 }
 
 // Periodically check if I should be leader
-func ElectMeIfLeaderDie() {
+func electMeIfLeaderDie() {
 
 	go func() {
 		for {
@@ -45,12 +45,14 @@ func ElectMeIfLeaderDie() {
 
 			if now.Sub(lastHeartbeatTime) > maxTimeout {
 
+				raftLikeLogger := GetLogger()
+
 				SendMulticast(
 					multicast.MulticastTopics["ELECT_ME_AS_LEADER"],
 					multicast.JoinFields(
 						strconv.Itoa(getNewTerm()),
 						MyNodeID,
-						strconv.Itoa(MyLogOffset),
+						strconv.Itoa(raftLikeLogger.getCachedLatestOplog()),
 					),
 				)
 			}
@@ -82,9 +84,11 @@ func voteLeader(requestNewTermStr, requestLeaderNodeId, requestLeaderLogOffsetSt
 
 	votedLeaderID, ok := myVote[newTerm]
 
+	raftLikeLogger := GetLogger()
+
 	isAlreadyVote := ok
 	if isAlreadyVote {
-		if votedLeaderID != requestLeaderNodeId || requestLeaderLogOffset < MyLogOffset {
+		if votedLeaderID != requestLeaderNodeId || requestLeaderLogOffset < raftLikeLogger.getCachedLatestOplog() {
 			voteDecision = 0
 		}
 	} else if requestLeaderNodeId != MyNodeID {
@@ -93,7 +97,9 @@ func voteLeader(requestNewTermStr, requestLeaderNodeId, requestLeaderLogOffsetSt
 		}
 
 		myTerm := getMyTerm()
-		if newTerm < myTerm || requestLeaderLogOffset < MyLogOffset {
+		raftLikeLogger := GetLogger()
+
+		if newTerm < myTerm || requestLeaderLogOffset < raftLikeLogger.getCachedLatestOplog() {
 			voteDecision = 0
 		}
 	}
@@ -214,7 +220,8 @@ func listenLeaderElection() {
 	)
 }
 
-func init() {
+func StartLeaderElectionService() {
 	listenLeaderElection()
 	leaderSendHeartBeat()
+	electMeIfLeaderDie()
 }

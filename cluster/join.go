@@ -42,15 +42,16 @@ func leaderAllowJoinGroup(nodeID, ip string) {
 
 	membership := GetMembership()
 	membership.AddNewMember(nodeID, ip)
+	syncLog()
 
 }
 
-func init() {
-	fmt.Println("[INFO] Init cluster")
+func StartJoinGroupService() {
 	ListenMulticast(
 		multicast.MulticastTopics["JOIN_GROUP"],
 		func(nodeID string, ip string, UDPAddr *net.UDPAddr) {
 			leaderAllowJoinGroup(nodeID, ip)
 		},
 	)
+	JoinGroup()
 }

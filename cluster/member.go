@@ -24,7 +24,7 @@ type MemberList map[string]Member
 // MyNodeID ...
 // Node ID
 var MyNodeID string = strconv.Itoa(rand.Int())
-var MyLogOffset int
+var myLogOffset int
 
 type Membership struct {
 	Leader  *Member
@@ -166,7 +166,7 @@ func (membership *Membership) rpcRegister() {
 	rpc.RegisterType(membership)
 }
 
-func init() {
+func StartMembershipService() {
 	myMembership = NewMembership()
 	myMembership.rpcRegister()
 
