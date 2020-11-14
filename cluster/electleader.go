@@ -71,7 +71,11 @@ func voteLeader(requestNewTermStr, requestLeaderNodeId, requestLeaderLogOffsetSt
 	newTerm, err := strconv.Atoi(requestNewTermStr)
 
 	if err != nil {
-		fmt.Printf("[WARN] Invalid requested voting term: %s; Err: %s", termStr, err)
+		fmt.Printf(
+			"[WARN] Invalid requested voting term: %s; Err: %s",
+			newTerm,
+			err,
+		)
 		return
 	}
 

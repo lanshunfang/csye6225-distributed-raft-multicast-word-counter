@@ -82,7 +82,7 @@ func (m *Membership) ReportLeaderIP(payload interface{}, replyLeaderIP *string) 
 func (m *Membership) ForEachMember(callback func(member Member, isLeader bool)) {
 
 	for key, value := range myMembership.Members {
-		callback(value, key == myMembership.Leader.ID)
+		callback(*value, key == myMembership.Leader.ID)
 	}
 }
 
@@ -97,7 +97,7 @@ func (m *Membership) AddNewMember(nodeID, ip string) bool {
 			delete(m.Members, key)
 		}
 	}
-	m.Members[nodeID] = Member{IP: ip, ID: nodeID}
+	m.Members[nodeID] = &Member{IP: ip, ID: nodeID}
 	m.SyncMemberList()
 	return true
 }

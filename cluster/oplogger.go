@@ -1,7 +1,6 @@
 package cluster
 
 import (
-
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -216,7 +215,7 @@ func (l *RaftLikeLogger) syncLogForMember(member Member) {
 				fmt.Println(errMsg + ". Retry. Max attempts left: " + strconv.Itoa(maxattempt))
 
 				maxattempt--
-	
+
 				time.Sleep(100 * time.Millisecond)
 
 			}
@@ -236,24 +235,28 @@ func (l *RaftLikeLogger) AppendLog(oplog Oplog, replyValidOffset *int) error {
 		)
 	}
 
-	checkIfExistLog, err := l.GetOplogByOffset(oplog.LogOffset)
+	_, err := l.GetOplogByOffset(oplog.LogOffset)
 
 	if err == nil {
-		fmt.Printf("[WARN] I have the log already. MyID: %s, MyIP: %s", myself.ID, myself.IP),
+		fmt.Printf(
+			"[WARN] I have the log already. MyID: %s, MyIP: %s", myself.ID, myself.IP,
+		)
 		return nil
 	}
 
 	acceptableMaxLogoffset := l.getCachedLatestOplog() + 1
 	if oplog.LogOffset > acceptableMaxLogoffset {
 
-		replyValidOffset = acceptableMaxLogoffset
+		*replyValidOffset = acceptableMaxLogoffset
 
-		fmt.Printf("[WARN] I don't have the latest log. Please send me log from logoffset. MyID: %s, MyIP: %s", myself.ID, myself.IP),
-		
+		fmt.Printf(
+			"[WARN] I don't have the latest log. Please send me log from logoffset. MyID: %s, MyIP: %s", myself.ID, myself.IP,
+		)
+
 	} else {
 		if oplog.LogOffset < acceptableMaxLogoffset {
-			fmt.Printf("[WARN] The log offset in leader may be smaller than mine. MyID: %s, MyIP: %s", myself.ID, myself.IP),
-		
+			fmt.Printf("[WARN] The log offset in leader may be smaller than mine. MyID: %s, MyIP: %s", myself.ID, myself.IP)
+
 		}
 		l.appendOplog(oplog)
 	}

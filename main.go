@@ -1,4 +1,4 @@
-package distributed
+package main
 
 import (
 	"wordcounter/cluster"
