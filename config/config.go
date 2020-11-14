@@ -40,8 +40,8 @@ var HttpRpcList = map[string]RPCDef{
 		Name: "Membership",
 		Port: "ENV_PORT_MEMBERSHIP",
 	},
-	"Membership.UpdateMemberList": {
-		Name: "Membership.UpdateMemberList",
+	"Membership.UpdateMembership": {
+		Name: "Membership.UpdateMembership",
 		Port: "ENV_PORT_MEMBERSHIP",
 	},
 	"Membership.ReportLeaderIP": {

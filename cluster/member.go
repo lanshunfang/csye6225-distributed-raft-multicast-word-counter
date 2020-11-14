@@ -14,10 +14,9 @@ import (
 )
 
 type Member struct {
-	ID        string
-	Term      int
-	IP        string
-	LogOffset int
+	ID   string
+	Term int
+	IP   string
 }
 
 type MemberList map[string]Member
@@ -27,28 +26,41 @@ type MemberList map[string]Member
 var MyNodeID string = strconv.Itoa(rand.Int())
 
 type Membership struct {
-	Leader  Member
-	Members map[string]Member
+	Leader  *Member
+	Members map[string]*Member
 }
 
-var myMembership = &Membership{}
+var myMembership *Membership
 
-func GetMembership() Membership {
-	return *myMembership
+func GetMembership() *Membership {
+	return myMembership
 }
-func getLeader() Member {
+func getLeader() *Member {
 	return myMembership.Leader
 }
 
 func IsLeader(nodeID, ip string) bool {
-	leader := myMembership.Leader
+	leader := getLeader()
 	if leader.ID == "" || leader.IP == "" || nodeID == "" || ip == "" {
 		return false
 	}
 	return leader.ID == nodeID && leader.IP == ip
 }
 
-func getMyself() Member {
+func updateMeAsLeaderForNewTerm(newTerm int) {
+	myself := getMyself()
+	myself.Term = newTerm
+	myMembership.Leader = myself
+	myMembership.Members[myself.ID] = myself
+	for _, v := range myMembership.Members {
+		v.Term = newTerm
+	}
+
+	myMembership.SyncMemberList()
+
+}
+
+func getMyself() *Member {
 	return myMembership.Members[MyNodeID]
 }
 
@@ -60,7 +72,7 @@ func (m *Membership) ReportLeaderIP(payload interface{}, replyLeaderIP *string) 
 	ip := m.Leader.IP
 
 	if ip == "" {
-		return errors.New("[ERROR] Unable to fetch IP. Please retry")
+		return errors.New("[ERROR] Unable to fetch leader IP. Please retry")
 	}
 	*replyLeaderIP = ip
 	return nil
@@ -89,8 +101,9 @@ func (m *Membership) AddNewMember(nodeID, ip string) bool {
 	return true
 }
 
-func (m *Membership) UpdateMemberList(mList MemberList, replyNodeID *string) error {
-	m.Members = mList
+func (m *Membership) UpdateMembership(newMembership Membership, replyNodeID *string) error {
+	m.Members = newMembership.Members
+	m.Leader = newMembership.Leader
 	*replyNodeID = MyNodeID
 	return nil
 }
@@ -115,7 +128,7 @@ func (m *Membership) SyncMemberList() error {
 				return errors.New(errMsg)
 			}
 
-			err := callRPCSyncMember(m, value.IP)
+			err := callRPCSyncMembership(m, value.IP)
 			if err == nil {
 				break
 			}
@@ -132,24 +145,20 @@ func (m *Membership) SyncMemberList() error {
 	return nil
 }
 
-func callRPCSyncMember(m *Membership, ip string) error {
+func callRPCSyncMembership(m *Membership, ip string) error {
 	responseNodeID := ""
 	err := rpc.CallRPC(
 		ip,
-		config.HttpRpcList["Membership.UpdateMemberList"].Name,
-		m.Members,
+		config.HttpRpcList["Membership.UpdateMembership"].Name,
+		m,
 		&responseNodeID,
 	)
 
 	return err
 }
 
-func NewMembership() Membership {
-	return Membership{
-		Leader: Member{},
-		// map[nodeId]Member
-		Members: make(MemberList),
-	}
+func NewMembership() *Membership {
+	return &Membership{}
 }
 
 func (membership *Membership) rpcRegister() {
@@ -157,7 +166,7 @@ func (membership *Membership) rpcRegister() {
 }
 
 func init() {
-	membership := NewMembership()
-	membership.rpcRegister()
+	myMembership = NewMembership()
+	myMembership.rpcRegister()
 
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/rpc"
+	"time"
 	"wordcounter/config"
 )
 
@@ -44,8 +45,11 @@ func init() {
 		io.WriteString(res, "\n\nRPC Report: "+string(httpRPCListBytes))
 	})
 
-	rpc.HandleHTTP()
+	go func() {
+		// wait for register types in other packages
+		time.Sleep(2 * time.Second)
+		rpc.HandleHTTP()
+		http.ListenAndServe(":"+config.Envs["ENV_RPC_PORT"], nil)
+	}()
 
-	// listen and serve default HTTP server
-	http.ListenAndServe(":"+config.EnvPorts[portName], nil)
 }
