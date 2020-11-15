@@ -35,7 +35,7 @@ func CallRPC(remoteHost, methodName string, payload interface{}, reply interface
 
 func init() {
 	// sample test endpoint
-	http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
+	http.HandleFunc("/rpc", func(res http.ResponseWriter, req *http.Request) {
 		io.WriteString(res, "GO RPC SERVER IS ALIVE!")
 		io.WriteString(res, "\nDebug: "+rpc.DefaultDebugPath)
 		httpRPCListBytes, err := json.Marshal(config.HttpRpcList)

@@ -24,7 +24,8 @@ type MemberList map[string]Member
 // MyNodeID ...
 // Node ID
 var MyNodeID string = strconv.Itoa(rand.Int())
-var myLogOffset int
+var defaultLogOffset = 0
+var myLogOffset *int = &defaultLogOffset
 
 type Membership struct {
 	Leader  *Member
@@ -64,10 +65,11 @@ func updateMeAsLeaderForNewTerm(newTerm int, latestVote voterVote) {
 	}
 
 	fmt.Printf(
-		"\n\n\n[INFO] I have been elected as the new leader. My NodeID: %s; My IP: %s; Current Term: %v; We have %v member(s) in the cluster.\n\n\n",
+		"\n\n\n[INFO] I have been elected as the new leader. My NodeID: %s; My IP: %s; Current Term: %v; My LogOffset: %v; We have %v member(s) in the cluster.\n\n\n",
 		myself.ID,
 		*myself.IP,
 		*myself.Term,
+		*myLogOffset,
 		len(myMembership.Members),
 	)
 

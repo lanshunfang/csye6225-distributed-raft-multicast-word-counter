@@ -4,6 +4,7 @@ import (
 	"sync"
 	"wordcounter/cluster"
 	"wordcounter/distributetask"
+	"wordcounter/web"
 )
 
 func main() {
@@ -16,6 +17,7 @@ func main() {
 	cluster.StartJoinGroupService()
 	cluster.StartLeaderElectionService()
 	distributetask.StartWordCountService()
+	web.ServeWeb()
 
 	wg.Wait()
 

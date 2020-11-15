@@ -43,7 +43,7 @@ func (l *RaftLikeLogger) getLatestOplog() (Oplog, error) {
 }
 
 func (l *RaftLikeLogger) getCachedLatestOplog() int {
-	return myLogOffset
+	return *myLogOffset
 }
 
 func appendOplog(l *RaftLikeLogger, log Oplog) {
@@ -88,13 +88,13 @@ func commitLog(l *RaftLikeLogger) {
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		0644,
 	)
+	defer dataFile.Close()
 	if err != nil {
 		fmt.Printf("[ERROR] Open/Create log failed. File path %s", logfilePath)
 	}
 	dataEncoder := gob.NewEncoder(dataFile)
 	dataEncoder.Encode(l.Logstack)
 	updateMemberLogOffset()
-	defer dataFile.Close()
 }
 func (l *RaftLikeLogger) loadLog() {
 	// open data file
@@ -105,6 +105,7 @@ func (l *RaftLikeLogger) loadLog() {
 	}
 
 	dataFile, err := os.Open(logfilePath)
+	defer dataFile.Close()
 
 	if err != nil {
 
@@ -121,8 +122,6 @@ func (l *RaftLikeLogger) loadLog() {
 		fmt.Println(err)
 		return
 	}
-
-	dataFile.Close()
 
 	updateMemberLogOffset()
 
@@ -298,7 +297,7 @@ func (l *RaftLikeLogger) AppendLog(oplog Oplog, replyValidOffset *int) error {
 func updateMemberLogOffset() {
 	lastLog, err := raftLikeLogger.getLatestOplog()
 	if err == nil {
-		myLogOffset = lastLog.LogOffset
+		*myLogOffset = lastLog.LogOffset
 	}
 
 }

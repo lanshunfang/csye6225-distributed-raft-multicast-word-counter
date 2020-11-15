@@ -5,8 +5,9 @@ import (
 )
 
 var Envs = map[string]string{
-	"ENV_MULTICAST_GROUP": "239.0.0.1:10000",
-	"ENV_RPC_PORT":        "8080",
+	"ENV_MULTICAST_GROUP":  "239.0.0.1:10000",
+	"ENV_HTTP_STATIC_PORT": "3000",
+	"ENV_RPC_PORT":         "8081",
 }
 
 // var EnvPorts = map[string]string{

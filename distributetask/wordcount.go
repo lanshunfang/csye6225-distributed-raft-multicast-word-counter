@@ -2,7 +2,9 @@ package distributetask
 
 import (
 	"fmt"
+	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"wordcounter/cluster"
@@ -17,6 +19,8 @@ type WordCount struct {
 type CountDescriptor struct {
 	logOffset, payloadByteOffset, countlength int
 }
+
+var wc *WordCount
 
 func (wc *WordCount) countIt(desc CountDescriptor) (int, error) {
 	logger := cluster.GetLogger()
@@ -50,9 +54,9 @@ func (wc *WordCount) countIt(desc CountDescriptor) (int, error) {
 
 }
 
-func NewWordCount() WordCount {
+func NewWordCount() *WordCount {
 	inst := WordCount{}
-	return inst
+	return &inst
 }
 func (wc *WordCount) Count(desc CountDescriptor, replyWordCount *int) error {
 	count, err := wc.countIt(desc)
@@ -66,23 +70,26 @@ func (wc *WordCount) rpcRegister() {
 
 // HTTPHandle ...
 // HTTP outlet for client incoming word counting request
-func (wc *WordCount) HTTPHandle(text string, reply *int) error {
+func HTTPProxyWordCount(text string, w http.ResponseWriter, r *http.Request) (int, error) {
 
 	logger := cluster.GetLogger()
 
 	oplog, err := cluster.AppendOplog(&logger, &text)
 
 	if err != nil {
-		return err
+		return 500, err
 	}
 
-	*reply = runtask(wc, oplog)
+	res := runtask(oplog)
 
-	return nil
+	w.Write([]byte(strconv.Itoa(res)))
+
+	return 200, nil
 
 }
 
-func runtask(wc *WordCount, oplog cluster.Oplog) int {
+func runtask(oplog cluster.Oplog) int {
+
 	membership := cluster.GetMembership()
 	countMembers := len(membership.Members)
 	payloadBytes := []byte(fmt.Sprintf("%v", oplog.Payload))
@@ -137,7 +144,10 @@ func (wc *WordCount) callRPC(ip string, logOffset int) (int, error) {
 	return replyWordCount, err
 }
 
+// StartWordCountService ...
+// Start word count service that offer distributed word counting in the cluster
 func StartWordCountService() {
-	wc := NewWordCount()
+	fmt.Println("[INFO] Offering WordCount Service.")
+	wc = NewWordCount()
 	wc.rpcRegister()
 }
