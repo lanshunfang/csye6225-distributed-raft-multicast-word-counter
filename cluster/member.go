@@ -64,10 +64,11 @@ func updateMeAsLeaderForNewTerm(newTerm int, latestVote voterVote) {
 	}
 
 	fmt.Printf(
-		"\n\n\n[INFO] I have been elected as the new leader. My NodeID: %s; My IP: %s; Current Term: %v\n\n\n",
+		"\n\n\n[INFO] I have been elected as the new leader. My NodeID: %s; My IP: %s; Current Term: %v; We have %v member(s) in the cluster.\n\n\n",
 		myself.ID,
 		*myself.IP,
 		*myself.Term,
+		len(myMembership.Members),
 	)
 
 	syncMemberList(myMembership)
@@ -126,17 +127,39 @@ func addNewMember(m *Membership, newMemberNodeID, newMemberIP string) bool {
 		Term: m.Leader.Term,
 	}
 	m.Members[newMemberNodeID] = newMember
-	if m.Leader.ID == newMember.ID {
-		m.Leader = newMember
-	}
 	syncMemberList(m)
 	return true
 }
 
 func (m *Membership) UpdateMembership(newMembership Membership, replyNodeID *string) error {
+	myself := getMyself()
+	myTerm := getMyTerm()
+	newLeader := newMembership.Leader
+	requestLeaderTerm := *newLeader.Term
+	if requestLeaderTerm < myTerm {
+		errMsg := fmt.Errorf(
+			"Reject syncing member from a leader of previous term. My Term: %v; RequestSyncing Leader term: %v; RequestSyncing Leader ID %s;  RequestSyncing Leader IP %s",
+			myTerm,
+			requestLeaderTerm,
+			newLeader.ID,
+			*newLeader.IP,
+		)
+		return errMsg
+	}
+
+	fmt.Printf(
+		"\n[INFO] Syncing my membership from Leader. My ID: %s; My IP: %s; My Term: %v; Leader's IP: %s; Leader's Term: %v\n",
+		myself.ID,
+		*myself.IP,
+		*myself.Term,
+		*newLeader.IP,
+		*newLeader.Term,
+	)
+
 	m.Members = newMembership.Members
 	m.Leader = newMembership.Leader
 	*replyNodeID = MyNodeID
+
 	return nil
 }
 
