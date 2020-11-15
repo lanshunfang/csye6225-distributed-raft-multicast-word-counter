@@ -100,7 +100,7 @@ func (l *RaftLikeLogger) loadLog() {
 	// open data file
 	isFileExist := osextend.FileExists(logfilePath)
 	if !isFileExist {
-		fmt.Printf("[WARN] Log loading skipped. Reason: log file doesn't exist at path %s", logfilePath)
+		fmt.Printf("[WARN] Log loading skipped. Reason: log file doesn't exist at path %s\n", logfilePath)
 		return
 	}
 
@@ -143,12 +143,12 @@ func GetOplogByOffset(l *RaftLikeLogger, offset int) (Oplog, error) {
 }
 
 func (l *RaftLikeLogger) isSyncing(member Member) bool {
-	state, ok := oplogSyncing[member.IP]
+	state, ok := oplogSyncing[*member.IP]
 	return ok && state == true
 }
 
 func (l *RaftLikeLogger) updateSyncing(member Member, state bool) {
-	oplogSyncing[member.IP] = state
+	oplogSyncing[*member.IP] = state
 }
 
 func (l *RaftLikeLogger) syncOplogs() {
@@ -199,7 +199,7 @@ func (l *RaftLikeLogger) syncLogForMember(member Member, wg *sync.WaitGroup) {
 		return
 	}
 
-	errMsg := "[WARN] Unable to syncOplogs to node `" + member.ID + "` with IP: " + member.IP
+	errMsg := "[WARN] Unable to syncOplogs to node `" + member.ID + "` with IP: " + *member.IP
 
 	validLogOffset := oplog.LogOffset
 
@@ -229,7 +229,7 @@ func (l *RaftLikeLogger) syncLogForMember(member Member, wg *sync.WaitGroup) {
 				break
 			}
 
-			err = l.callRPCSyncLog(oplog, member.IP, &validLogOffset)
+			err = l.callRPCSyncLog(oplog, *member.IP, &validLogOffset)
 			if err == nil {
 				if validLogOffset == l.getCachedLatestOplog()+1 {
 					break

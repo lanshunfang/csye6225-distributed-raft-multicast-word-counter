@@ -15,8 +15,8 @@ import (
 
 type Member struct {
 	ID   string
-	Term int
-	IP   string
+	Term *int
+	IP   *string
 }
 
 type MemberList map[string]Member
@@ -40,22 +40,35 @@ func getLeader() *Member {
 	return myMembership.Leader
 }
 
-func IsLeader(nodeID, ip string) bool {
+func isNodeLeader(nodeID, ip string) bool {
 	leader := getLeader()
-	if leader.ID == "" || leader.IP == "" || nodeID == "" || ip == "" {
+	if leader.ID == "" || *leader.IP == "" || nodeID == "" || ip == "" {
 		return false
 	}
-	return leader.ID == nodeID && leader.IP == ip
+	return leader.ID == nodeID && *leader.IP == ip
 }
 
-func updateMeAsLeaderForNewTerm(newTerm int) {
+func updateMeAsLeaderForNewTerm(newTerm int, latestVote voterVote) {
+
 	myself := getMyself()
-	myself.Term = newTerm
+
+	updateMyIP(latestVote.leaderIP)
+
+	// *myself.IP = latestVote.leaderIP
+
+	*myself.Term = newTerm
 	myMembership.Leader = myself
 	myMembership.Members[myself.ID] = myself
 	for _, v := range myMembership.Members {
-		v.Term = newTerm
+		*v.Term = newTerm
 	}
+
+	fmt.Printf(
+		"\n\n\n[INFO] I have been elected as the new leader. My NodeID: %s; My IP: %s; Current Term: %v\n\n\n",
+		myself.ID,
+		*myself.IP,
+		*myself.Term,
+	)
 
 	syncMemberList(myMembership)
 
@@ -77,7 +90,7 @@ func isLeaderNil() bool {
 }
 
 func (m *Membership) ReportLeaderIP(payload interface{}, replyLeaderIP *string) error {
-	ip := m.Leader.IP
+	ip := *m.Leader.IP
 
 	if ip == "" {
 		return errors.New("[ERROR] Unable to fetch leader IP. Please retry")
@@ -95,18 +108,27 @@ func ForEachMember(m *Membership, callback func(member Member, isLeader bool)) {
 	}
 }
 
-func addNewMember(m *Membership, nodeID, ip string) bool {
+func addNewMember(m *Membership, newMemberNodeID, newMemberIP string) bool {
 
 	if !isIAmLeader() {
 		fmt.Println("[WARN] Only allow Leader to add new member")
 		return false
 	}
+
 	for key, node := range m.Members {
-		if node.IP == ip {
+		if *node.IP == newMemberIP {
 			delete(m.Members, key)
 		}
 	}
-	m.Members[nodeID] = &Member{IP: ip, ID: nodeID}
+	newMember := &Member{
+		ID:   newMemberNodeID,
+		IP:   &newMemberIP,
+		Term: m.Leader.Term,
+	}
+	m.Members[newMemberNodeID] = newMember
+	if m.Leader.ID == newMember.ID {
+		m.Leader = newMember
+	}
 	syncMemberList(m)
 	return true
 }
@@ -133,17 +155,17 @@ func syncMemberList(m *Membership) {
 		maxattempt := 3
 		for {
 			if maxattempt <= 0 {
-				errMsg := "[ERROR] Fail in perform SyncMemberList to node `" + key + "` with IP: " + value.IP + ". Max retry reached. Skip."
+				errMsg := "[ERROR] Fail in perform SyncMemberList to node `" + key + "` with IP: " + *value.IP + ". Max retry reached. Skip."
 				fmt.Println(errMsg)
 				return
 			}
 
-			err := callRPCSyncMembership(m, value.IP)
+			err := callRPCSyncMembership(m, *value.IP)
 			if err == nil {
 				break
 			}
 
-			fmt.Println("[WARN] Unable to SyncMemberList to node `" + key + "` with IP: " + value.IP + ". Retry")
+			fmt.Println("[WARN] Unable to SyncMemberList to node `" + key + "` with IP: " + *value.IP + ". Retry")
 
 			maxattempt--
 
@@ -166,8 +188,24 @@ func callRPCSyncMembership(m *Membership, ip string) error {
 	return err
 }
 
-func NewMembership() *Membership {
-	return &Membership{}
+func updateMyIP(IP string) {
+	myself := getMyself()
+	*myself.IP = IP
+}
+
+func newMembership() *Membership {
+	members := make(map[string]*Member)
+	var myIP string = ""
+	var myTerm int = 0
+	members[MyNodeID] = &Member{
+		ID:   MyNodeID,
+		IP:   &myIP,
+		Term: &myTerm,
+	}
+	return &Membership{
+		Leader:  &Member{},
+		Members: members,
+	}
 }
 
 func (membership *Membership) rpcRegister() {
@@ -175,7 +213,7 @@ func (membership *Membership) rpcRegister() {
 }
 
 func StartMembershipService() {
-	myMembership = NewMembership()
+	myMembership = newMembership()
 	myMembership.rpcRegister()
 
 }

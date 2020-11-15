@@ -102,7 +102,7 @@ func runtask(wc *WordCount, oplog cluster.Oplog) int {
 
 			wg.Add(1)
 			go func(wg *sync.WaitGroup, member *cluster.Member) {
-				replyWordCount, err := wc.callRPC(member.IP, offset)
+				replyWordCount, err := wc.callRPC(*member.IP, offset)
 				if err != nil {
 					replyWordCount = 0
 				}

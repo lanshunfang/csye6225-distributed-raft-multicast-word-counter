@@ -18,7 +18,7 @@ func JoinGroup() {
 	for ; maxAttempt > 0; maxAttempt-- {
 		_, ok := membership.Members[MyNodeID]
 		if !ok {
-			fmt.Printf("[INFO] Start to join group. Attempts left %v", maxAttempt)
+			fmt.Printf("[INFO] Start to join group. Attempts left %v\n", maxAttempt)
 			requestJoinGroup()
 		} else {
 			return
@@ -35,14 +35,14 @@ func requestJoinGroup() {
 	SendMulticast(multicast.MulticastTopics["JOIN_GROUP"], MyNodeID)
 }
 
-func leaderAllowJoinGroup(nodeID, ip string) {
+func leaderAllowJoinGroup(senderNodeID, senderIP string) {
 
 	if !isIAmLeader() {
 		return
 	}
 
 	membership := GetMembership()
-	addNewMember(membership, nodeID, ip)
+	addNewMember(membership, senderNodeID, senderIP)
 	syncLog()
 
 }
@@ -50,9 +50,9 @@ func leaderAllowJoinGroup(nodeID, ip string) {
 func StartJoinGroupService() {
 	ListenMulticast(
 		multicast.MulticastTopics["JOIN_GROUP"],
-		func(nodeID string, ip string, UDPAddr *net.UDPAddr) {
-			leaderAllowJoinGroup(nodeID, ip)
+		func(senderNodeID string, senderIP string, UDPAddr *net.UDPAddr) {
+			leaderAllowJoinGroup(senderNodeID, senderIP)
 		},
 	)
-	JoinGroup()
+	go JoinGroup()
 }
