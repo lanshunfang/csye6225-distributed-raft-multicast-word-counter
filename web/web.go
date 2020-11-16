@@ -2,15 +2,20 @@ package web
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
+	"wordcounter/cluster"
 	"wordcounter/config"
 	"wordcounter/distributetask"
 )
 
+// ServeWeb ...
+// Server web for browser to visit at port :config.Envs["ENV_HTTP_STATIC_PORT"]
+// It will redirect to Leader node if user request it from a client node's port
 func ServeWeb() {
 
+	serveLeaderWebRedirect()
 	serveHTMLStatic()
 	serveHTTPEndpoint()
 
@@ -23,26 +28,90 @@ func ServeWeb() {
 	}
 }
 
-func serveHTMLStatic() {
-	fs := http.FileServer(http.Dir("./static"))
-	http.Handle("/", fs)
+func isRequestFromLeaderIP(w http.ResponseWriter, r *http.Request) bool {
+	leaderIP := cluster.GetLeaderIP()
+	return strings.HasPrefix(r.Host, leaderIP)
+}
+
+func serveLeaderWebRedirect() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		if isRequestFromLeaderIP(w, r) {
+			handler := serveHTMLStatic()
+			handler.ServeHTTP(w, r)
+			return
+		}
+
+		if r.RequestURI != "/" {
+			return
+		}
+
+		leaderIP := cluster.GetLeaderIP()
+
+		scheme := r.URL.Scheme
+		if scheme == "" {
+			scheme = "http"
+		}
+		urlTarget := scheme + "://" + leaderIP + ":" + config.Envs["ENV_HTTP_STATIC_PORT"] + "/"
+		fmt.Printf("[INFO] Rewrite to %s\n", urlTarget)
+		http.Redirect(
+			w,
+			r,
+			urlTarget,
+			http.StatusFound,
+		)
+	})
+
+}
+func getURLScheme(r *http.Request) string {
+	return r.URL.Scheme
+}
+func serveHTMLStatic() http.Handler {
+	// TODO: Should not allow user visit on /web if it request it from a client node
+	return http.FileServer(http.Dir("./static"))
 
 }
 
-func wordCountHandler(w http.ResponseWriter, r *http.Request) {
+func httpHandler(w http.ResponseWriter, r *http.Request) {
+	if !isRequestFromLeader(w, r) {
+		return
+	}
 	if !isHTTPPOST(w, r) {
 		return
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Error reading request body",
-			http.StatusInternalServerError)
+	// if regexp.MatchString("/wordcount$", r.URL.Path) {
+
+	if strings.HasSuffix(r.URL.Path, "/wordcount") {
+		wordCountHandler(w, r)
+	} else {
+		nilHandler(w, r)
 	}
 
-	fmt.Fprint(w, "POST done")
+}
 
-	statusCode, err := distributetask.HTTPProxyWordCount(string(body), w, r)
+func nilHandler(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "[ERROR] The Path doesn't have any handler", http.StatusInternalServerError)
+}
+
+func wordCountHandler(w http.ResponseWriter, r *http.Request) {
+
+	// Parse our multipart form, 10 << 20 specifies a maximum
+	// upload of 10 MB files.
+	r.ParseMultipartForm(10 << 20)
+
+	file, _, err := r.FormFile("usertxtfile")
+
+	if err != nil {
+		errMsg := "[ERROR] Unable to read the user upload"
+		http.Error(w, errMsg, http.StatusNotAcceptable)
+		fmt.Printf(errMsg, err)
+		return
+	}
+
+	defer file.Close()
+
+	statusCode, err := distributetask.HTTPProxyWordCount(file, w, r)
 
 	if err != nil {
 		http.Error(w, err.Error(), statusCode)
@@ -50,14 +119,29 @@ func wordCountHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func isRequestFromLeader(w http.ResponseWriter, r *http.Request) bool {
+	leaderIP := cluster.GetLeaderIP()
+	if !isRequestFromLeaderIP(w, r) {
+
+		http.Error(
+			w,
+			fmt.Sprintf("[ERROR] Only Leader could serve your request. Leader IP: %s", leaderIP),
+			http.StatusForbidden,
+		)
+
+		return false
+	}
+	return true
+}
+
 func isHTTPPOST(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method != "POST" {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		http.Error(w, "[ERROR] Invalid request method", http.StatusMethodNotAllowed)
 		return false
 	}
 	return true
 }
 
 func serveHTTPEndpoint() {
-	http.HandleFunc("/api/wordcount", wordCountHandler)
+	http.HandleFunc("/api/wordcount", httpHandler)
 }

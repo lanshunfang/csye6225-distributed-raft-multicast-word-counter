@@ -25,7 +25,7 @@ type RaftLikeLogger struct {
 	Logstack []Oplog
 }
 
-var raftLikeLogger RaftLikeLogger
+var raftLikeLogger *RaftLikeLogger
 
 var logfilePath string = "./oplog.gob"
 
@@ -53,7 +53,7 @@ func appendOplog(l *RaftLikeLogger, log Oplog) {
 
 // AppendOplog ...
 // Append oplog to log pipe
-func AppendOplog(l *RaftLikeLogger, payload *string) (Oplog, error) {
+func AppendOplog(l *RaftLikeLogger, payload *[]byte) (Oplog, error) {
 	if !isIAmLeader() {
 		errMsg := "[WARN] Only allow Leader to append log directly"
 		fmt.Println(errMsg)
@@ -70,7 +70,7 @@ func AppendOplog(l *RaftLikeLogger, payload *string) (Oplog, error) {
 
 	log := Oplog{
 		RPCMethod: config.HttpRpcList["RaftLikeLogger.AppendLog"].Name,
-		Payload:   []byte(*payload),
+		Payload:   *payload,
 		Timestamp: time.Now().String(),
 		LogOffset: logOffset,
 	}
@@ -261,7 +261,9 @@ func (l *RaftLikeLogger) AppendLog(oplog Oplog, replyValidOffset *int) error {
 	myself := getMyself()
 	if isIAmLeader() {
 		return errors.New(
-			fmt.Sprintf("[ERROR] I am leader. Do not accept new log from RPC. My NodeId %s, my IP %s", myself.ID, myself.IP),
+			fmt.Sprintf(
+				"[ERROR] I am leader. Do not accept new log from RPC. My NodeId %s, my IP %s", myself.ID, *myself.IP,
+			),
 		)
 	}
 
@@ -302,12 +304,12 @@ func updateMemberLogOffset() {
 
 }
 
-func GetLogger() RaftLikeLogger {
+func GetLogger() *RaftLikeLogger {
 	return raftLikeLogger
 }
 
-func newLogger() RaftLikeLogger {
-	raftLikeLogger = RaftLikeLogger{}
+func newLogger() *RaftLikeLogger {
+	raftLikeLogger = &RaftLikeLogger{}
 	return raftLikeLogger
 }
 
@@ -317,12 +319,18 @@ func (l *RaftLikeLogger) rpcRegister() {
 
 func (l *RaftLikeLogger) callRPCSyncLog(oplog Oplog, ip string, replyValidOffset *int) error {
 
+	replyValidOffsetStr := ""
 	err := rpc.CallRPC(
 		ip,
 		config.HttpRpcList["RaftLikeLogger.AppendLog"].Name,
 		oplog,
-		replyValidOffset,
+		&replyValidOffsetStr,
 	)
+	if err != nil {
+		return err
+	}
+
+	*replyValidOffset, err = strconv.Atoi(replyValidOffsetStr)
 
 	return err
 }

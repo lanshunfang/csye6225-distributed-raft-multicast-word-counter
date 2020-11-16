@@ -18,12 +18,14 @@ func RegisterType(instance interface{}) {
 
 }
 
-func CallRPC(remoteHost, methodName string, payload interface{}, reply interface{}) error {
+// CallRPC ...
+// Call GO RPC in the remote host
+func CallRPC(remoteHost, methodName string, payload interface{}, replyPointer *string) error {
 
 	// get RPC client by dialing at `rpc.DefaultRPCPath` endpoint
 	client, _ := rpc.DialHTTP("tcp", remoteHost+":"+config.Envs["ENV_RPC_PORT"]) // or `localhost:9000`
 
-	if err := client.Call(methodName, payload, &reply); err != nil {
+	if err := client.Call(methodName, payload, replyPointer); err != nil {
 
 		fmt.Println("[ERROR] RPC Call Error", err)
 		return err

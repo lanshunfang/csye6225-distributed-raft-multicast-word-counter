@@ -13,12 +13,18 @@ import (
 	"wordcounter/rpc"
 )
 
+// Member ...
+// @ID -  Member ID, random string assigned on node startup
+// @Term - The term for the current member. Start from 0 on node init
+// 		It should always align to the leader's term
+// @IP - Current member's cluster IP.
 type Member struct {
 	ID   string
 	Term *int
 	IP   *string
 }
 
+// MemberList ...
 type MemberList map[string]Member
 
 // MyNodeID ...
@@ -27,6 +33,8 @@ var MyNodeID string = strconv.Itoa(rand.Int())
 var defaultLogOffset = 0
 var myLogOffset *int = &defaultLogOffset
 
+// Membership ...
+// Holding all member registry
 type Membership struct {
 	Leader  *Member
 	Members map[string]*Member
@@ -34,11 +42,19 @@ type Membership struct {
 
 var myMembership *Membership
 
+// GetMembership ...
+// Return membership
 func GetMembership() *Membership {
 	return myMembership
 }
 func getLeader() *Member {
 	return myMembership.Leader
+}
+
+// GetLeaderIP ...
+// Return Leader IP
+func GetLeaderIP() string {
+	return *myMembership.Leader.IP
 }
 
 func isNodeLeader(nodeID, ip string) bool {
