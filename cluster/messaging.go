@@ -25,6 +25,9 @@ func printLog(msgType, topic, msg, senderIP string) {
 
 }
 
+// SendMulticast ...
+// Send multicast message to multicast address
+// so that all members listen to it will receive the message
 func SendMulticast(topic, msg string) {
 
 	printLog("Send", topic, msg, "")
@@ -39,6 +42,8 @@ func SendMulticast(topic, msg string) {
 	sender.Send(topic, msg)
 }
 
+// ListenMulticast ...
+// Listen multicast messages of the network
 func ListenMulticast(topic string, listener func(nodeID string, senderIP string, UDPAddr *net.UDPAddr)) {
 	if multicastAddr == nil {
 		envAddr := config.Envs["ENV_MULTICAST_GROUP"]

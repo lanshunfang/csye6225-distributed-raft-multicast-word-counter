@@ -3,8 +3,6 @@ package utils
 import (
 	"bytes"
 	"encoding/gob"
-	"encoding/json"
-	"fmt"
 	"math/rand"
 	"time"
 )
@@ -21,10 +19,8 @@ func GetBytes(key interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func PrintVariables(anyV interface{}) {
-	fmt.Print(json.Marshal(anyV))
-}
-
+// RandWithSeed ...
+// Create new rand instance with time seed
 func RandWithSeed() *rand.Rand {
 	return rand.New(rand.NewSource(time.Now().UnixNano()))
 }

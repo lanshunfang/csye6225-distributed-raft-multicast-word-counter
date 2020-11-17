@@ -63,7 +63,7 @@ func leaderAllowJoinGroup(senderNodeID, senderIP string) {
 }
 
 // StartJoinGroupService ...
-// Join cluster via Multicast IP
+// Join cluster via multicast IP
 func StartJoinGroupService() {
 	fmt.Println("[INFO] StartJoinGroupService")
 	ListenMulticast(

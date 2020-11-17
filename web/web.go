@@ -41,30 +41,6 @@ func serveLeaderWebRedirect() {
 		handler := serveHTMLStatic()
 		handler.ServeHTTP(w, r)
 
-		// if isRequestFromLeaderIP(w, r) {
-		// 	handler := serveHTMLStatic()
-		// 	handler.ServeHTTP(w, r)
-		// 	return
-		// }
-
-		// if r.RequestURI != "/" {
-		// 	return
-		// }
-
-		// leaderIP := cluster.GetLeaderIP()
-
-		// scheme := r.URL.Scheme
-		// if scheme == "" {
-		// 	scheme = "http"
-		// }
-		// urlTarget := scheme + "://" + leaderIP + ":" + config.Envs["ENV_HTTP_STATIC_PORT"] + "/"
-		// fmt.Printf("[INFO] Rewrite to %s\n", urlTarget)
-		// http.Redirect(
-		// 	w,
-		// 	r,
-		// 	urlTarget,
-		// 	http.StatusFound,
-		// )
 	})
 
 }
@@ -72,20 +48,14 @@ func getURLScheme(r *http.Request) string {
 	return r.URL.Scheme
 }
 func serveHTMLStatic() http.Handler {
-	// TODO: Should not allow user visit on /web if it request it from a client node
 	return http.FileServer(http.Dir("./static"))
-
 }
 
 func httpHandler(w http.ResponseWriter, r *http.Request) {
-	// if !isRequestFromLeader(w, r) {
-	// 	return
-	// }
+
 	if !isHTTPPOST(w, r) {
 		return
 	}
-
-	// if regexp.MatchString("/wordcount$", r.URL.Path) {
 
 	if strings.HasSuffix(r.URL.Path, "/wordcount") {
 		wordCountHandler(w, r)

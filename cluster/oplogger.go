@@ -14,13 +14,18 @@ import (
 	"wordcounter/rpc"
 )
 
+// Oplog ...
+// Operation log
 type Oplog struct {
 	RPCMethod string
+	// The HTTP Request payload for the RPCMethod
 	Payload   interface{}
 	LogOffset int
 	Timestamp string
 }
 
+// RaftLikeLogger ...
+// Raft log for High Availability cluster
 type RaftLikeLogger struct {
 	Logstack []Oplog
 }
@@ -46,6 +51,8 @@ func (l *RaftLikeLogger) getCachedLatestOplog() int {
 	return *myLogOffset
 }
 
+// LeaderAppendLog ...
+// Append log from leader node then sync to all the followers
 func (l *RaftLikeLogger) LeaderAppendLog(log Oplog, replyLog *Oplog) error {
 
 	appendOplog(l, log)
@@ -78,7 +85,7 @@ func AppendOplog(l *RaftLikeLogger, payload *[]byte) (Oplog, error) {
 	}
 
 	log := Oplog{
-		RPCMethod: config.HttpRpcList["RaftLikeLogger.FollowerAppendLog"].Name,
+		RPCMethod: config.HTTPRPCList["RaftLikeLogger.FollowerAppendLog"].Name,
 		Payload:   *payload,
 		Timestamp: time.Now().String(),
 		LogOffset: logOffset,
@@ -87,7 +94,7 @@ func AppendOplog(l *RaftLikeLogger, payload *[]byte) (Oplog, error) {
 	replyOplog := Oplog{}
 	err = rpc.CallRPC(
 		GetLeaderIP(),
-		config.HttpRpcList["RaftLikeLogger.LeaderAppendLog"].Name,
+		config.HTTPRPCList["RaftLikeLogger.LeaderAppendLog"].Name,
 		log,
 		&replyOplog,
 	)
@@ -240,7 +247,7 @@ func (l *RaftLikeLogger) syncLogForMember(member Member, wg *sync.WaitGroup) {
 			oplog, err := GetOplogByOffset(l, validLogOffset)
 
 			if err != nil {
-				fmt.Printf("[WARN] The log offset %s is invalid", validLogOffset)
+				fmt.Printf("[WARN] The log offset %v is invalid", validLogOffset)
 				break
 			}
 
@@ -273,21 +280,23 @@ func (l *RaftLikeLogger) syncLogForMember(member Member, wg *sync.WaitGroup) {
 
 }
 
+// FollowerAppendLog ...
+// RPC method for all followers to add their log
+// The RPC method Will be called from leader node
 func (l *RaftLikeLogger) FollowerAppendLog(oplog Oplog, replyValidOffset *int) error {
 	myself := getMyself()
 	if isIAmLeader() {
-		return errors.New(
-			fmt.Sprintf(
-				"[ERROR] I am leader. Do not accept new log from RPC. My NodeId %s, my IP %s", myself.ID, *myself.IP,
-			),
+		return fmt.Errorf(
+			"[ERROR] I am leader. Do not accept new log from RPC. My NodeId %s, my IP %s", myself.ID, *myself.IP,
 		)
+
 	}
 
 	_, err := GetOplogByOffset(l, oplog.LogOffset)
 
 	if err == nil {
 		fmt.Printf(
-			"[WARN] I have the log already. MyID: %s, MyIP: %s", myself.ID, myself.IP,
+			"[WARN] I have the log already. MyID: %s, MyIP: %s", myself.ID, *myself.IP,
 		)
 		*replyValidOffset = oplog.LogOffset + 1
 		return nil
@@ -299,12 +308,12 @@ func (l *RaftLikeLogger) FollowerAppendLog(oplog Oplog, replyValidOffset *int) e
 		*replyValidOffset = acceptableMaxLogoffset
 
 		fmt.Printf(
-			"[WARN] I don't have the latest log. Please send me log from logoffset. MyID: %s, MyIP: %s", myself.ID, myself.IP,
+			"[WARN] I don't have the latest log. Please send me log from logoffset. MyID: %s, MyIP: %s", myself.ID, *myself.IP,
 		)
 
 	} else {
 		if oplog.LogOffset < acceptableMaxLogoffset {
-			fmt.Printf("[WARN] The log offset in leader may be smaller than mine. MyID: %s, MyIP: %s", myself.ID, myself.IP)
+			fmt.Printf("[WARN] The log offset in leader may be smaller than mine. MyID: %s, MyIP: %s", myself.ID, *myself.IP)
 
 		}
 		appendOplog(l, oplog)
@@ -321,6 +330,8 @@ func updateMemberLogOffset() {
 
 }
 
+// GetLogger ...
+// Get logger instance
 func GetLogger() *RaftLikeLogger {
 	return raftLikeLogger
 }
@@ -338,7 +349,7 @@ func (l *RaftLikeLogger) callRPCSyncLog(oplog Oplog, ip string, replyValidOffset
 
 	err := rpc.CallRPC(
 		ip,
-		config.HttpRpcList["RaftLikeLogger.FollowerAppendLog"].Name,
+		config.HTTPRPCList["RaftLikeLogger.FollowerAppendLog"].Name,
 		oplog,
 		&replyValidOffset,
 	)

@@ -14,12 +14,24 @@ import (
 	"wordcounter/utils"
 )
 
+// WordCount ...
+// Word count RPC receiver type
 type WordCount struct {
 	text string
 }
 
+// CountDescriptor ...
+// Use for distributed task
 type CountDescriptor struct {
-	LogOffset, PayloadByteOffset, Countlength int
+	// LogOffset ...
+	// The log offset for the wordcounting to execute against
+	LogOffset,
+	// PayloadByteOffset ...
+	// The offset of the payload that the follower should start with
+	PayloadByteOffset,
+	// Countlength ...
+	// The length from the PayloadByteOffset
+	Countlength int
 }
 
 var wc *WordCount
@@ -31,8 +43,6 @@ func (wc *WordCount) countIt(desc CountDescriptor) (int, error) {
 		return 0, err
 	}
 
-	// bytes := []byte(fmt.Sprintf("%v", oplog.Payload.(interface{})))
-	// str := fmt.Sprintf("%v", oplog.Payload.(interface{}))
 	bytes, err := utils.GetBytes(oplog.Payload)
 	if err != nil {
 		return 0, err
@@ -51,7 +61,6 @@ func (wc *WordCount) countIt(desc CountDescriptor) (int, error) {
 	}
 
 	myStr := string(bytes[payloadByteOffset:payloadByteEnd])
-	// myStr = strings.Replace(myStr, "\t", " ", -1)
 	m1 := regexp.MustCompile(`\s+`)
 	myStr = m1.ReplaceAllString(myStr, " ")
 	// replace twice so that all tab \t could be replaced
@@ -65,6 +74,9 @@ func newWordCount() *WordCount {
 	inst := WordCount{}
 	return &inst
 }
+
+// Count ...
+// RPC method for counting the text file in distributed manner
 func (wc *WordCount) Count(desc CountDescriptor, replyWordCount *int) error {
 	count, err := wc.countIt(desc)
 	*replyWordCount = count
@@ -166,7 +178,7 @@ func (wc *WordCount) callRPC(ip string, countDescriptor CountDescriptor) (int, e
 
 	err := rpc.CallRPC(
 		ip,
-		config.HttpRpcList["WordCount.Count"].Name,
+		config.HTTPRPCList["WordCount.Count"].Name,
 		countDescriptor,
 		&replyWordCount,
 	)

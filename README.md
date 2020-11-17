@@ -6,12 +6,12 @@
 
 ## Clustering
 
-- On node startup, it will send UDP Multicast at address `239.0.0.1:10000` (configurable) to its network to detect if any leader node exists. If a leader node exists, it will join its cluster
+- On node startup, it will send UDP packages to multicast address `239.0.0.1:10000` (configurable) to its network to detect if any leader node exists. If a leader node exists, it will join its cluster
 
 ## Leader election
 
-- All followers will listen the leader's heartbeat over Multicast address.
-- If a follower didn't receive a leader heartbeat within a time interval (randomly generated within [1000, 2000] milliseconds), it will send `Leader election` message into the Multicast address to start a new term leader election
+- All followers will listen the leader's heartbeat over multicast address.
+- If a follower _didn't_ receive a leader heartbeat within a time interval (randomly generated within [1000, 2000] milliseconds), it will send `Leader election` message into the multicast address to start a `new term` leader election
 - A node always maintains a log stack and a term
 - Leader node would be elected with 2 considerations: term ID, log offset
 - Only the node with latest log offset has the potential to be elected as the new term leader
@@ -22,7 +22,7 @@
 
 - Any operation request will be persisted into the log stack in the local drive and propagated into the cluster before proceeding.
 - The leader node is in charge of log persisting and syncing.
-- Once the operation log are saved and synced, any node, including followers and the leader, could orchestrate the cluster to perform actions against any corresponding log offset. So, all nodes could offer HTTP services to any users.
+- Once the operation log are safely saved and synced, any node, including followers and the leader, could orchestrate the cluster to perform actions against any corresponding log offset. So, all nodes could offer HTTP services to any users.
 - The HTTP service run at port `3000` in all nodes.
 
 # Example: Word counting workflow
@@ -37,17 +37,19 @@
 
 ## Deploy with Docker containers
 
-- call `./bin/dockerrun.sh 2` to start a 2-member docker container cluster
+- call `./bin/dockerrun.sh 2` to start a 2-member docker container cluster (change 2 to N for N-member cluster)
 - Open `http://ANY_DOCKER_CONTAINER_IP:3000` in Chrome
+  - `ANY_DOCKER_CONTAINER_IP` is the IP of any members in the cluster that is accessible
+  - In the docker cluster, we only expose port `3000` of the first container to its host
 - Upload a text file and view the result in the browser
 
 ## Deploy in cloud computing instances
 
-- Build the package
-- Upload the generated binary file into cloud computing instances, like EC2
+- Build the package for the target cloud OS
+- Upload the generated binary file into cloud computing instances, like EC2 Ubuntu instances
 - Make sure all the instances share the same VPC network
 - Run the binary in each instances
-- Use any main stream browser to open `http://ANY_NODE_IP:3000`
+- Use any main stream browser to open `http://ANY_NODE_PUBLIC_IP:3000`
 
 # Screenshots
 
