@@ -26,7 +26,7 @@ func joinGroup() {
 			return
 		}
 
-		time.Sleep(2 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 
 	fmt.Print("[ERROR] Unable to join Group after max attempts")
@@ -42,7 +42,7 @@ func leaderAllowJoinGroup(senderNodeID, senderIP string) {
 	fmt.Printf("[INFO] Check If allow to join the group from %s. My IP: %s\n", senderIP, *getMyself().IP)
 
 	if !isIAmLeader() {
-		// fmt.Printf("[INFO] Only Leader could allow new member join. I am not a leader. My IP: %s\n", *getMyself().IP)
+		fmt.Printf("[INFO] Only Leader could allow new member join. I am not a leader. My IP: %s\n", *getMyself().IP)
 		return
 	}
 
@@ -55,7 +55,8 @@ func leaderAllowJoinGroup(senderNodeID, senderIP string) {
 	membership := GetMembership()
 
 	addNewMember(membership, senderNodeID, senderIP)
-	syncMemberList(membership)
+
+	syncMembershipToFollowers(membership)
 
 	syncLog()
 

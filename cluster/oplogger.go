@@ -31,7 +31,7 @@ var logfilePath string = "./oplog.gob"
 
 var logfileLock sync.Mutex
 
-var oplogSyncing map[string]bool
+var oplogSyncing map[string]bool = map[string]bool{}
 
 func (l *RaftLikeLogger) getLatestOplog() (Oplog, error) {
 	lenLogstack := len(l.Logstack)
@@ -46,6 +46,15 @@ func (l *RaftLikeLogger) getCachedLatestOplog() int {
 	return *myLogOffset
 }
 
+func (l *RaftLikeLogger) LeaderAppendLog(log Oplog, replyLog *Oplog) error {
+
+	appendOplog(l, log)
+	syncLog()
+	*replyLog = log
+	return nil
+
+}
+
 func appendOplog(l *RaftLikeLogger, log Oplog) {
 	l.Logstack = append(l.Logstack, log)
 	commitLog(l)
@@ -54,11 +63,11 @@ func appendOplog(l *RaftLikeLogger, log Oplog) {
 // AppendOplog ...
 // Append oplog to log pipe
 func AppendOplog(l *RaftLikeLogger, payload *[]byte) (Oplog, error) {
-	if !isIAmLeader() {
-		errMsg := "[WARN] Only allow Leader to append log directly"
-		fmt.Println(errMsg)
-		return Oplog{}, errors.New(errMsg)
-	}
+	// if !isIAmLeader() {
+	// 	errMsg := "[WARN] Only allow Leader to append log directly"
+	// 	fmt.Println(errMsg)
+	// 	return Oplog{}, errors.New(errMsg)
+	// }
 
 	logOffset := 0
 
@@ -69,14 +78,21 @@ func AppendOplog(l *RaftLikeLogger, payload *[]byte) (Oplog, error) {
 	}
 
 	log := Oplog{
-		RPCMethod: config.HttpRpcList["RaftLikeLogger.AppendLog"].Name,
+		RPCMethod: config.HttpRpcList["RaftLikeLogger.FollowerAppendLog"].Name,
 		Payload:   *payload,
 		Timestamp: time.Now().String(),
 		LogOffset: logOffset,
 	}
-	appendOplog(l, log)
-	syncLog()
-	return log, nil
+
+	replyOplog := Oplog{}
+	err = rpc.CallRPC(
+		GetLeaderIP(),
+		config.HttpRpcList["RaftLikeLogger.LeaderAppendLog"].Name,
+		log,
+		&replyOplog,
+	)
+
+	return replyOplog, err
 }
 
 func commitLog(l *RaftLikeLogger) {
@@ -257,7 +273,7 @@ func (l *RaftLikeLogger) syncLogForMember(member Member, wg *sync.WaitGroup) {
 
 }
 
-func (l *RaftLikeLogger) AppendLog(oplog Oplog, replyValidOffset *int) error {
+func (l *RaftLikeLogger) FollowerAppendLog(oplog Oplog, replyValidOffset *int) error {
 	myself := getMyself()
 	if isIAmLeader() {
 		return errors.New(
@@ -273,6 +289,7 @@ func (l *RaftLikeLogger) AppendLog(oplog Oplog, replyValidOffset *int) error {
 		fmt.Printf(
 			"[WARN] I have the log already. MyID: %s, MyIP: %s", myself.ID, myself.IP,
 		)
+		*replyValidOffset = oplog.LogOffset + 1
 		return nil
 	}
 
@@ -319,18 +336,12 @@ func (l *RaftLikeLogger) rpcRegister() {
 
 func (l *RaftLikeLogger) callRPCSyncLog(oplog Oplog, ip string, replyValidOffset *int) error {
 
-	replyValidOffsetStr := ""
 	err := rpc.CallRPC(
 		ip,
-		config.HttpRpcList["RaftLikeLogger.AppendLog"].Name,
+		config.HttpRpcList["RaftLikeLogger.FollowerAppendLog"].Name,
 		oplog,
-		&replyValidOffsetStr,
+		&replyValidOffset,
 	)
-	if err != nil {
-		return err
-	}
-
-	*replyValidOffset, err = strconv.Atoi(replyValidOffsetStr)
 
 	return err
 }

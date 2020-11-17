@@ -45,17 +45,21 @@ var HttpRpcList = map[string]RPCDef{
 		Name: "Membership.UpdateMembership",
 		Port: "ENV_PORT_MEMBERSHIP",
 	},
-	"Membership.ReportLeaderIP": {
-		Name: "Membership.ReportLeaderIP",
-		Port: "ENV_PORT_MEMBERSHIP",
-	},
+	// "MembershipForRPC.ReportLeaderIP": {
+	// 	Name: "MembershipForRPC.ReportLeaderIP",
+	// 	Port: "ENV_PORT_MEMBERSHIP",
+	// },
 
 	"RaftLikeLogger": {
 		Name: "RaftLikeLogger",
 		Port: "ENV_PORT_LOGGER",
 	},
-	"RaftLikeLogger.AppendLog": {
-		Name: "RaftLikeLogger.AppendLog",
+	"RaftLikeLogger.FollowerAppendLog": {
+		Name: "RaftLikeLogger.FollowerAppendLog",
+		Port: "ENV_PORT_LOGGER",
+	},
+	"RaftLikeLogger.LeaderAppendLog": {
+		Name: "RaftLikeLogger.LeaderAppendLog",
 		Port: "ENV_PORT_LOGGER",
 	},
 }

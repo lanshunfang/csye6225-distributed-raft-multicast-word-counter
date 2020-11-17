@@ -3,14 +3,14 @@ package cluster
 import (
 
 	// "crypto/rand"
-	"errors"
+
 	"fmt"
-	"math/rand"
 	"strconv"
 	"time"
 
 	"wordcounter/config"
 	"wordcounter/rpc"
+	"wordcounter/utils"
 )
 
 // Member ...
@@ -24,12 +24,18 @@ type Member struct {
 	IP   *string
 }
 
+// type MemberForRPC struct {
+// 	ID   string
+// 	Term int
+// 	IP   string
+// }
+
 // MemberList ...
 type MemberList map[string]Member
 
 // MyNodeID ...
 // Node ID
-var MyNodeID string = strconv.Itoa(rand.Int())
+var MyNodeID string = strconv.Itoa(utils.RandWithSeed().Int())
 var defaultLogOffset = 0
 var myLogOffset *int = &defaultLogOffset
 
@@ -40,7 +46,12 @@ type Membership struct {
 	Members map[string]*Member
 }
 
-var myMembership *Membership
+// type MembershipForRPC struct {
+// 	Leader  MemberForRPC
+// 	Members map[string]MemberForRPC
+// }
+
+var myMembership *Membership = &Membership{}
 
 // GetMembership ...
 // Return membership
@@ -79,11 +90,12 @@ func updateMeAsLeaderForNewTerm(newTerm int, latestVote voterVote) {
 
 	// *myself.IP = latestVote.leaderIP
 
-	*myself.Term = newTerm
-	myMembership.Leader = myself
-	myMembership.Members[myself.ID] = myself
-	for _, v := range myMembership.Members {
-		*v.Term = newTerm
+	myself.Term = &newTerm
+	m := GetMembership()
+	m.Leader = myself
+	m.Members[myself.ID] = myself
+	for _, v := range m.Members {
+		v.Term = &newTerm
 	}
 
 	fmt.Printf(
@@ -95,7 +107,7 @@ func updateMeAsLeaderForNewTerm(newTerm int, latestVote voterVote) {
 		len(myMembership.Members),
 	)
 
-	syncMemberList(myMembership)
+	syncMembershipToFollowers(myMembership)
 
 }
 
@@ -114,15 +126,15 @@ func isLeaderNil() bool {
 	return myMembership.Leader == nil
 }
 
-func (m *Membership) ReportLeaderIP(payload interface{}, replyLeaderIP *string) error {
-	ip := *m.Leader.IP
+// func (m *MembershipForRPC) ReportLeaderIP(payload interface{}, replyLeaderIP *string) error {
+// 	ip := m.Leader.IP
 
-	if ip == "" {
-		return errors.New("[ERROR] Unable to fetch leader IP. Please retry")
-	}
-	*replyLeaderIP = ip
-	return nil
-}
+// 	if ip == "" {
+// 		return errors.New("[ERROR] Unable to fetch leader IP. Please retry")
+// 	}
+// 	*replyLeaderIP = ip
+// 	return nil
+// }
 
 // ForEachMember ...
 // For each member (including leader) in the membership, run the call back
@@ -139,6 +151,13 @@ func addNewMember(m *Membership, newMemberNodeID, newMemberIP string) bool {
 		fmt.Println("[WARN] Only allow Leader to add new member")
 		return false
 	}
+
+	if newMemberNodeID == getMyself().ID {
+		fmt.Printf("[INFO] Should not add myself into the member again. My IP: %s\n", *getMyself().IP)
+		return true
+	}
+
+	fmt.Printf("[INFO] Adding new member. %s to my cluster. My IP: %s\n", newMemberIP, *getMyself().IP)
 
 	for key, node := range m.Members {
 		if *node.IP == newMemberIP {
@@ -172,7 +191,7 @@ func (m *Membership) UpdateMembership(newMembership Membership, replyNodeID *str
 	}
 
 	fmt.Printf(
-		"\n[INFO] Syncing my membership from Leader. My ID: %s; My IP: %s; My Term: %v; Leader's IP: %s; Leader's Term: %v\n",
+		"\n[INFO] Accept update of membership from Leader. My ID: %s; My IP: %s; My Term: %v; Leader's IP: %s; Leader's Term: %v\n",
 		myself.ID,
 		*myself.IP,
 		*myself.Term,
@@ -180,14 +199,22 @@ func (m *Membership) UpdateMembership(newMembership Membership, replyNodeID *str
 		*newLeader.Term,
 	)
 
-	m.Members = newMembership.Members
-	m.Leader = newMembership.Leader
+	// m.Members = newMembership.Members
+	// m.Leader = newMembership.Leader
+
+	*myMembership = newMembership
+
+	// newMembershipTranformed := restoreMembershipFromRPC(newMembership)
+	// myMembership.Members = newMembershipTranformed.Members
+	// myMembership.Leader = newMembershipTranformed.Leader
 	*replyNodeID = MyNodeID
+
+	fmt.Printf("[INFO] Follower Membership updated. New Leader IP: %v", *GetMembership().Leader.IP)
 
 	return nil
 }
 
-func syncMemberList(m *Membership) {
+func syncMembershipToFollowers(m *Membership) {
 
 	if !isIAmLeader() {
 		fmt.Println("[WARN] Only allow Leader to sync members")
@@ -205,7 +232,7 @@ func syncMemberList(m *Membership) {
 		maxattempt := 3
 		for {
 			if maxattempt <= 0 {
-				errMsg := "[ERROR] Fail in perform SyncMemberList to node `" + key + "` with IP: " + *value.IP + ". Max retry reached. Skip."
+				errMsg := "[ERROR] Fail in perform syncMembershipToFollowers to node `" + key + "` with IP: " + *value.IP + ". Max retry reached. Skip."
 				fmt.Println(errMsg)
 				return
 			}
@@ -217,7 +244,7 @@ func syncMemberList(m *Membership) {
 				break
 			}
 
-			fmt.Println("[WARN] Unable to SyncMemberList to node `" + key + "` with IP: " + *value.IP + ". Retry")
+			fmt.Println("[WARN] Unable to syncMembershipToFollowers to node `" + key + "` with IP: " + *value.IP + ". Retry")
 
 			maxattempt--
 
@@ -229,6 +256,7 @@ func syncMemberList(m *Membership) {
 }
 
 func callRPCSyncMembership(m *Membership, ip string) error {
+
 	responseNodeID := ""
 	err := rpc.CallRPC(
 		ip,
@@ -245,7 +273,48 @@ func updateMyIP(IP string) {
 	*myself.IP = IP
 }
 
-func newMembership() *Membership {
+// func restoreMembershipFromRPC(m MembershipForRPC) *Membership {
+
+// 	var members map[string]*Member = make(map[string]*Member)
+
+// 	for k, v := range m.Members {
+// 		members[k] = getMemberFromMemberForRPC(v)
+// 	}
+
+// 	return &Membership{
+// 		Leader:  getMemberFromMemberForRPC(m.Leader),
+// 		Members: members,
+// 	}
+
+// }
+
+// func getMemberFromMemberForRPC(m MemberForRPC) *Member {
+// 	return &Member{
+// 		ID:   m.ID,
+// 		IP:   &m.IP,
+// 		Term: &m.Term,
+// 	}
+// }
+// func getMemberForRPCCall(m *Member) MemberForRPC {
+
+// 	return MemberForRPC{
+// 		IP:   *m.IP,
+// 		ID:   m.ID,
+// 		Term: *m.Term,
+// 	}
+// }
+// func getMembershipForRPCCall(m *Membership) MembershipForRPC {
+
+// 	allMembers := make(map[string]MemberForRPC, 10)
+// 	for k, m := range m.Members {
+// 		allMembers[k] = getMemberForRPCCall(m)
+// 	}
+
+// 	return MembershipForRPC{Leader: getMemberForRPCCall(m.Leader), Members: allMembers}
+
+// }
+
+func newMembership() Membership {
 	members := make(map[string]*Member)
 	var myIP string = ""
 	var myTerm int = 0
@@ -254,7 +323,7 @@ func newMembership() *Membership {
 		IP:   &myIP,
 		Term: &myTerm,
 	}
-	return &Membership{
+	return Membership{
 		Leader:  &Member{},
 		Members: members,
 	}
@@ -266,7 +335,7 @@ func (membership *Membership) rpcRegister() {
 
 func StartMembershipService() {
 
-	myMembership = newMembership()
+	*myMembership = newMembership()
 	myMembership.rpcRegister()
 	fmt.Printf("[INFO] StartMembershipService. MyNodeID: %s\n", getMyself().ID)
 

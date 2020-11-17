@@ -38,30 +38,33 @@ func isRequestFromLeaderIP(w http.ResponseWriter, r *http.Request) bool {
 func serveLeaderWebRedirect() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
-		if isRequestFromLeaderIP(w, r) {
-			handler := serveHTMLStatic()
-			handler.ServeHTTP(w, r)
-			return
-		}
+		handler := serveHTMLStatic()
+		handler.ServeHTTP(w, r)
 
-		if r.RequestURI != "/" {
-			return
-		}
+		// if isRequestFromLeaderIP(w, r) {
+		// 	handler := serveHTMLStatic()
+		// 	handler.ServeHTTP(w, r)
+		// 	return
+		// }
 
-		leaderIP := cluster.GetLeaderIP()
+		// if r.RequestURI != "/" {
+		// 	return
+		// }
 
-		scheme := r.URL.Scheme
-		if scheme == "" {
-			scheme = "http"
-		}
-		urlTarget := scheme + "://" + leaderIP + ":" + config.Envs["ENV_HTTP_STATIC_PORT"] + "/"
-		fmt.Printf("[INFO] Rewrite to %s\n", urlTarget)
-		http.Redirect(
-			w,
-			r,
-			urlTarget,
-			http.StatusFound,
-		)
+		// leaderIP := cluster.GetLeaderIP()
+
+		// scheme := r.URL.Scheme
+		// if scheme == "" {
+		// 	scheme = "http"
+		// }
+		// urlTarget := scheme + "://" + leaderIP + ":" + config.Envs["ENV_HTTP_STATIC_PORT"] + "/"
+		// fmt.Printf("[INFO] Rewrite to %s\n", urlTarget)
+		// http.Redirect(
+		// 	w,
+		// 	r,
+		// 	urlTarget,
+		// 	http.StatusFound,
+		// )
 	})
 
 }
@@ -75,9 +78,9 @@ func serveHTMLStatic() http.Handler {
 }
 
 func httpHandler(w http.ResponseWriter, r *http.Request) {
-	if !isRequestFromLeader(w, r) {
-		return
-	}
+	// if !isRequestFromLeader(w, r) {
+	// 	return
+	// }
 	if !isHTTPPOST(w, r) {
 		return
 	}

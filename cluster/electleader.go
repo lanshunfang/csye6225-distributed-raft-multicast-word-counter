@@ -2,15 +2,16 @@ package cluster
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"strconv"
 	"time"
 	"wordcounter/multicast"
+	"wordcounter/utils"
 )
 
-var lastHeartbeatTime time.Time = time.Now()
-var maxTimeout time.Duration = time.Duration(200*(1+200*rand.Float32())) * time.Microsecond
+var initTime = time.Now()
+var lastHeartbeatTime *time.Time = &initTime
+var maxTimeout time.Duration = time.Duration(1000*(1+utils.RandWithSeed().Float32())) * time.Millisecond
 var heartbeatFrequency time.Duration = 300 * time.Millisecond
 
 // map[term]votedLeaderID
@@ -50,20 +51,15 @@ func electMeIfLeaderDie() {
 				return
 			}
 
-			now := time.Now()
+			max := lastHeartbeatTime.Add(maxTimeout)
 
-			if now.Sub(lastHeartbeatTime) > maxTimeout {
+			if max.Before(time.Now()) {
 
-				raftLikeLogger := GetLogger()
+				fmt.Print("[INFO] TIME")
+				fmt.Print(max)
+				fmt.Print(time.Now())
 
-				SendMulticast(
-					multicast.MulticastTopics["ELECT_ME_AS_LEADER"],
-					multicast.JoinFields(
-						strconv.Itoa(getNewTerm()),
-						MyNodeID,
-						strconv.Itoa(raftLikeLogger.getCachedLatestOplog()),
-					),
-				)
+				electMeNow()
 				time.Sleep(3 * time.Second)
 			} else {
 				time.Sleep(300 * time.Microsecond)
@@ -74,20 +70,34 @@ func electMeIfLeaderDie() {
 
 }
 
+func electMeNow() {
+
+	SendMulticast(
+		multicast.MulticastTopics["ELECT_ME_AS_LEADER"],
+		multicast.JoinFields(
+			strconv.Itoa(getNewTerm()),
+			MyNodeID,
+			strconv.Itoa(raftLikeLogger.getCachedLatestOplog()),
+		),
+	)
+}
+
 func voteLeader(requestNewTermStr, requestLeaderNodeID, requestLeaderLogOffsetStr, requestLeaderIP string) {
 
 	voteDecision := 1
 
 	newTerm, err := strconv.Atoi(requestNewTermStr)
 
-	if isIAmLeader() && newTerm <= getMyTerm() {
-		fmt.Printf("[INFO] Reject request from %s as I am already a leader. My IP: %s", requestLeaderIP, *getMyself().IP)
+	if isIAmLeader() {
+		// if isIAmLeader() {
+		// fmt.Printf("  [INFO] Reject request from %s as I am already a leader. My IP: %s\n", requestLeaderIP, *getMyself().IP)
+		// electMeNow()
 		return
 	}
 
 	if err != nil {
 		fmt.Printf(
-			"[WARN] Invalid requested voting term: %v; Err: %s",
+			"[WARN] Invalid requested voting term: %v; Err: %s\n",
 			newTerm,
 			err,
 		)
@@ -97,7 +107,7 @@ func voteLeader(requestNewTermStr, requestLeaderNodeID, requestLeaderLogOffsetSt
 	requestLeaderLogOffset, err := strconv.Atoi(requestLeaderLogOffsetStr)
 
 	if err != nil {
-		fmt.Printf("[WARN] Invalid requested voting LogOffset: %s; Err: %s", requestLeaderLogOffsetStr, err)
+		fmt.Printf("[WARN] Invalid requested voting LogOffset: %s; Err: %s\n", requestLeaderLogOffsetStr, err)
 		return
 	}
 
@@ -152,7 +162,7 @@ func leaderSendHeartBeat() {
 	go func() {
 		for {
 			if isIAmLeader() {
-				lastHeartbeatTime = time.Now()
+				*lastHeartbeatTime = time.Now()
 				SendMulticast(multicast.MulticastTopics["LEADER_HEARTBEAT"], MyNodeID)
 			}
 			time.Sleep(heartbeatFrequency)
@@ -205,7 +215,10 @@ func hasReceivedMajorityVote(newTerm int) bool {
 }
 
 func updateLeaderHeartbeat(leaderNodeID, ip string) {
+	*lastHeartbeatTime = time.Now()
 	if isIAmLeader() {
+		// fmt.Printf("[WARN] I'm leader. I don't accept other heartbeats. My IP: %s; Heartbeat IP: %s \n", *getMyself().IP, ip)
+
 		return
 	}
 	if !isNodeLeader(leaderNodeID, ip) {
@@ -220,7 +233,6 @@ func updateLeaderHeartbeat(leaderNodeID, ip string) {
 		return
 	}
 
-	lastHeartbeatTime = time.Now()
 }
 
 func listenLeaderHeartbeat() {
@@ -258,7 +270,7 @@ func StartLeaderElectionService() {
 	fmt.Println("[INFO] StartLeaderElectionService")
 	listenLeaderElection()
 	listenLeaderVote()
-	leaderSendHeartBeat()
 	listenLeaderHeartbeat()
+	leaderSendHeartBeat()
 	electMeIfLeaderDie()
 }

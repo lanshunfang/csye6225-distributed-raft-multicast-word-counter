@@ -65,9 +65,9 @@ func newWordCount() *WordCount {
 	inst := WordCount{}
 	return &inst
 }
-func (wc *WordCount) Count(desc CountDescriptor, replyWordCount *string) error {
+func (wc *WordCount) Count(desc CountDescriptor, replyWordCount *int) error {
 	count, err := wc.countIt(desc)
-	*replyWordCount = strconv.Itoa(count)
+	*replyWordCount = count
 	return err
 }
 
@@ -128,7 +128,7 @@ func runtask(oplog cluster.Oplog) int {
 			// wg.Add(1)
 			// go func(offset int, wg *sync.WaitGroup, member *cluster.Member) {
 			go func(offset int, member *cluster.Member) {
-				fmt.Printf("[INFO] Member IP %s is processing task at log offset %v ", *member.IP, oplog.LogOffset)
+				fmt.Printf("[INFO] Member IP %s is processing task at log offset %v \n", *member.IP, oplog.LogOffset)
 
 				replyWordCount, err := wc.callRPC(
 					*member.IP,
@@ -145,11 +145,7 @@ func runtask(oplog cluster.Oplog) int {
 					replyWordCount = 0
 				}
 
-				// go func() {
-				// 	reportChan <- replyWordCount
-				// }()
 				reportChan <- replyWordCount
-				// wg.Done()
 
 			}(offset, &member)
 
@@ -161,14 +157,12 @@ func runtask(oplog cluster.Oplog) int {
 		ret += <-reportChan
 	}
 
-	// wg.Wait()
-
 	return ret
 }
 
 func (wc *WordCount) callRPC(ip string, countDescriptor CountDescriptor) (int, error) {
 
-	replyWordCount := ""
+	replyWordCount := 0
 
 	err := rpc.CallRPC(
 		ip,
@@ -181,7 +175,7 @@ func (wc *WordCount) callRPC(ip string, countDescriptor CountDescriptor) (int, e
 		return 0, err
 	}
 
-	return strconv.Atoi(replyWordCount)
+	return replyWordCount, nil
 
 }
 
