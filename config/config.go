@@ -4,18 +4,24 @@ import (
 	"os"
 )
 
+// Envs ...
+// Env variables that could be override by environtable variables
 var Envs = map[string]string{
 	"ENV_MULTICAST_GROUP":  "239.0.0.1:10000",
 	"ENV_HTTP_STATIC_PORT": "3000",
 	"ENV_RPC_PORT":         "8081",
 }
 
+// RPCDef RPC definition
+// Port is normally the RPC default server port
 type RPCDef struct {
 	Name string
 	Port string
 }
 
-var HttpRpcList = map[string]RPCDef{
+// HTTPRPCList ...
+// All the RPC endpoints for initialization and RPC call
+var HTTPRPCList = map[string]RPCDef{
 	"WordCount": {
 		Name: "WordCount",
 		Port: "ENV_PORT_WORDCOUNT",
@@ -53,7 +59,7 @@ var HttpRpcList = map[string]RPCDef{
 }
 
 func initEnvs(defaultMap map[string]string) {
-	for k, _ := range defaultMap {
+	for k := range defaultMap {
 		env := os.Getenv(k)
 		if env == "" {
 			continue

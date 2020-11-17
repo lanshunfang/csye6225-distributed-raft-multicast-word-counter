@@ -111,6 +111,11 @@ func updateMeAsLeaderForNewTerm(newTerm int, latestVote voterVote) {
 
 }
 
+// GetMyIP ...
+// Get my IP
+func GetMyIP() string {
+	return *getMyself().IP
+}
 func getMyself() *Member {
 	return myMembership.Members[MyNodeID]
 }
@@ -174,6 +179,9 @@ func addNewMember(m *Membership, newMemberNodeID, newMemberIP string) bool {
 	return true
 }
 
+// UpdateMembership ...
+// Update member status
+// It's a RPC methods for syncing membership from the leader to followers
 func (m *Membership) UpdateMembership(newMembership Membership, replyNodeID *string) error {
 	myself := getMyself()
 	myTerm := getMyTerm()
@@ -209,7 +217,7 @@ func (m *Membership) UpdateMembership(newMembership Membership, replyNodeID *str
 	// myMembership.Leader = newMembershipTranformed.Leader
 	*replyNodeID = MyNodeID
 
-	fmt.Printf("[INFO] Follower Membership updated. New Leader IP: %v", *GetMembership().Leader.IP)
+	fmt.Printf("[INFO] Follower Membership updated. New Leader IP: %v\n", *GetMembership().Leader.IP)
 
 	return nil
 }
@@ -260,7 +268,7 @@ func callRPCSyncMembership(m *Membership, ip string) error {
 	responseNodeID := ""
 	err := rpc.CallRPC(
 		ip,
-		config.HttpRpcList["Membership.UpdateMembership"].Name,
+		config.HTTPRPCList["Membership.UpdateMembership"].Name,
 		m,
 		&responseNodeID,
 	)
@@ -329,10 +337,13 @@ func newMembership() Membership {
 	}
 }
 
-func (membership *Membership) rpcRegister() {
-	rpc.RegisterType(membership)
+func (m *Membership) rpcRegister() {
+	rpc.RegisterType(m)
 }
 
+// StartMembershipService ...
+// Start membership service
+// The service holds the status of members and leader
 func StartMembershipService() {
 
 	*myMembership = newMembership()

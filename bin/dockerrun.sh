@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-# cd $DIR
+# The entry point to bring up N docker containers to build and run the go binary
+# All the N containers will share a new docker network `wordcounter`
+# The port 3000 will expose to the host for the first docker container
 
 dockerNetworkName="wordcounter"
 

@@ -31,11 +31,12 @@ func CallRPC(remoteHost, methodName string, payload interface{}, replyPointer in
 		return err
 	}
 
+	fmt.Printf("[INFO] Call RPC %s in node %s \n", methodName, remoteHost)
 	err = client.Call(methodName, payload, replyPointer)
 
 	if err != nil {
 
-		fmt.Println("[ERROR] RPC Call Error", err)
+		fmt.Printf("[ERROR] RPC Call %s to %s with Error %s\n", methodName, remoteHost, err)
 		return err
 	}
 
@@ -49,7 +50,7 @@ func StartRPCService() {
 	http.HandleFunc("/rpc", func(res http.ResponseWriter, req *http.Request) {
 		io.WriteString(res, "GO RPC SERVER IS ALIVE!")
 		io.WriteString(res, "\nDebug: "+rpc.DefaultDebugPath)
-		httpRPCListBytes, err := json.Marshal(config.HttpRpcList)
+		httpRPCListBytes, err := json.Marshal(config.HTTPRPCList)
 		if err != nil {
 			return
 		}

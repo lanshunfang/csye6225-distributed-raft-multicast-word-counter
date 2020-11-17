@@ -1,3 +1,4 @@
+// Package cluster maintains all the feature needed for clustering the computing instances
 package cluster
 
 import (
@@ -14,7 +15,6 @@ var lastHeartbeatTime *time.Time = &initTime
 var maxTimeout time.Duration = time.Duration(1000*(1+utils.RandWithSeed().Float32())) * time.Millisecond
 var heartbeatFrequency time.Duration = 300 * time.Millisecond
 
-// map[term]votedLeaderID
 var myVote = make(map[int]string)
 
 // map[term]map[voterIP]voterResult
@@ -25,6 +25,9 @@ type voterVote struct {
 	voterIP     string
 	result      int
 }
+
+// LeaderElectionResult ...
+// Leader election result
 type LeaderElectionResult map[int]map[string]voterVote
 
 var myLeaderElectionResult = make(LeaderElectionResult)
@@ -54,11 +57,6 @@ func electMeIfLeaderDie() {
 			max := lastHeartbeatTime.Add(maxTimeout)
 
 			if max.Before(time.Now()) {
-
-				fmt.Print("[INFO] TIME")
-				fmt.Print(max)
-				fmt.Print(time.Now())
-
 				electMeNow()
 				time.Sleep(3 * time.Second)
 			} else {
@@ -89,9 +87,6 @@ func voteLeader(requestNewTermStr, requestLeaderNodeID, requestLeaderLogOffsetSt
 	newTerm, err := strconv.Atoi(requestNewTermStr)
 
 	if isIAmLeader() {
-		// if isIAmLeader() {
-		// fmt.Printf("  [INFO] Reject request from %s as I am already a leader. My IP: %s\n", requestLeaderIP, *getMyself().IP)
-		// electMeNow()
 		return
 	}
 

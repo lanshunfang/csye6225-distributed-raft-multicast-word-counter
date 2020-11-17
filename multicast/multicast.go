@@ -8,12 +8,19 @@ import (
 
 var messageTopicPayloadSplitter = "___||___"
 
+// Sender ...
+// Multicast sender (UDP)
 type Sender struct {
 	conn *net.UDPConn
 }
 
+// MulticastListener ...
+// Multicast listener over UDP
 type MulticastListener func(string, string, string, *net.UDPAddr)
 
+// MulticastTopics ...
+// The topic for multicast messages
+// Sender and listeners are grouped by topics
 var MulticastTopics = map[string]string{
 	"JOIN_GROUP":         "JOIN_GROUP",
 	"ELECT_ME_AS_LEADER": "ELECT_ME_AS_LEADER",
@@ -21,26 +28,35 @@ var MulticastTopics = map[string]string{
 	"LEADER_HEARTBEAT":   "LEADER_HEARTBEAT",
 }
 
+// MulticastTopicsHideLog ...
+// Topics that should not show in logs
 var MulticastTopicsHideLog = map[string]string{
 	"LEADER_HEARTBEAT": "LEADER_HEARTBEAT",
 }
 
 const payloadFieldSplitter string = "|"
 
+// JoinFields ...
+// Join multiple fields with splitter for multicast messaging
 func JoinFields(fields ...string) string {
 	return strings.Join(fields, payloadFieldSplitter)
 }
+
+// GetFields ...
+// The reverse of JoinFields
 func GetFields(joinedFields string) []string {
 	return strings.Split(joinedFields, payloadFieldSplitter)
 }
 
+// Send ...
+// Send message into the topic channel
 func (s *Sender) Send(topic string, payload string) {
 	s.conn.Write([]byte(topic + messageTopicPayloadSplitter + payload))
 }
 
-// GetSenderHandler ...
+// GetSender ...
 // @param multicastGroup
-// 		- Multicast group, Port in valid IP Range - 224.0.0.0 through 239.255.255.255
+// 		- multicast group, Port in valid IP Range - 224.0.0.0 through 239.255.255.255
 // 		- e.g. 239.0.0.1:10000
 // @example
 //		```golang
