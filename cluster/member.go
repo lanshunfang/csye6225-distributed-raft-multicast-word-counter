@@ -59,9 +59,15 @@ func GetLeaderIP() string {
 
 func isNodeLeader(nodeID, ip string) bool {
 	leader := getLeader()
-	if leader.ID == "" || *leader.IP == "" || nodeID == "" || ip == "" {
+
+	if nodeID == "" || ip == "" {
 		return false
 	}
+
+	if leader.ID == "" || *leader.IP == "" {
+		return true
+	}
+
 	return leader.ID == nodeID && *leader.IP == ip
 }
 
@@ -145,7 +151,7 @@ func addNewMember(m *Membership, newMemberNodeID, newMemberIP string) bool {
 		Term: m.Leader.Term,
 	}
 	m.Members[newMemberNodeID] = newMember
-	syncMemberList(m)
+
 	return true
 }
 
@@ -188,8 +194,11 @@ func syncMemberList(m *Membership) {
 		return
 	}
 
+	fmt.Printf("[INFO] Syncing member list from me. My IP: %s \n", *getMyself().IP)
+
 	for key, value := range m.Members {
 		if key == m.Leader.ID {
+			// fmt.Println("[INFO] No need to sync membership to a leader. Leader NodeID: `" + key + "` with IP: " + *value.IP)
 			continue
 		}
 
@@ -200,6 +209,8 @@ func syncMemberList(m *Membership) {
 				fmt.Println(errMsg)
 				return
 			}
+
+			fmt.Println("[INFO] Try to sync Member list to node `" + key + "` with IP: " + *value.IP)
 
 			err := callRPCSyncMembership(m, *value.IP)
 			if err == nil {
@@ -254,7 +265,9 @@ func (membership *Membership) rpcRegister() {
 }
 
 func StartMembershipService() {
+
 	myMembership = newMembership()
 	myMembership.rpcRegister()
+	fmt.Printf("[INFO] StartMembershipService. MyNodeID: %s\n", getMyself().ID)
 
 }

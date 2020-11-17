@@ -125,7 +125,7 @@ func (l *RaftLikeLogger) loadLog() {
 
 	updateMemberLogOffset()
 
-	fmt.Printf("[INFO] Loaded log data from file %s", logfilePath)
+	fmt.Printf("[INFO] Loaded log data from file %s\n", logfilePath)
 }
 
 // GetOplogByOffset ...
@@ -338,6 +338,7 @@ func (l *RaftLikeLogger) callRPCSyncLog(oplog Oplog, ip string, replyValidOffset
 // StartRaftLogService ...
 // We offter a raft safe log so that when a node die,
 func StartRaftLogService() {
+	fmt.Println("[INFO] StartRaftLogService")
 	raftLikeLogger = newLogger()
 	raftLikeLogger.rpcRegister()
 	raftLikeLogger.loadLog()

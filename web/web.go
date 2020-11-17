@@ -15,6 +15,8 @@ import (
 // It will redirect to Leader node if user request it from a client node's port
 func ServeWeb() {
 
+	fmt.Println("[INFO] ServeWeb")
+
 	serveLeaderWebRedirect()
 	serveHTMLStatic()
 	serveHTTPEndpoint()

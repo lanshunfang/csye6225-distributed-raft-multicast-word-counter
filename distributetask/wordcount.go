@@ -108,7 +108,7 @@ func runtask(oplog cluster.Oplog) int {
 	membership := cluster.GetMembership()
 	countMembers := len(membership.Members)
 
-	fmt.Printf("[INFO] Run task with log offset %v ", oplog.LogOffset)
+	fmt.Printf("[INFO] Run task with log offset %v \n", oplog.LogOffset)
 
 	payloadBytes := []byte(fmt.Sprintf("%v", oplog.Payload))
 	countPayloadBytes := len(payloadBytes)
@@ -188,7 +188,7 @@ func (wc *WordCount) callRPC(ip string, countDescriptor CountDescriptor) (int, e
 // StartWordCountService ...
 // Start word count service that offer distributed word counting in the cluster
 func StartWordCountService() {
-	fmt.Println("[INFO] Offering WordCount Service.")
+	fmt.Println("[INFO] StartWordCountService")
 	wc = newWordCount()
 	wc.rpcRegister()
 }

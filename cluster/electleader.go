@@ -40,6 +40,9 @@ func getNewTerm() int {
 // Periodically check if I should be leader
 func electMeIfLeaderDie() {
 
+	// wait for Join Group done
+	time.Sleep(5 * time.Second)
+
 	go func() {
 		for {
 
@@ -76,6 +79,11 @@ func voteLeader(requestNewTermStr, requestLeaderNodeID, requestLeaderLogOffsetSt
 	voteDecision := 1
 
 	newTerm, err := strconv.Atoi(requestNewTermStr)
+
+	if isIAmLeader() && newTerm <= getMyTerm() {
+		fmt.Printf("[INFO] Reject request from %s as I am already a leader. My IP: %s", requestLeaderIP, *getMyself().IP)
+		return
+	}
 
 	if err != nil {
 		fmt.Printf(
@@ -204,11 +212,10 @@ func updateLeaderHeartbeat(leaderNodeID, ip string) {
 		fmt.Println("[WARN] Receive a leader heartbeat that is not from current leader")
 		leader := getLeader()
 		fmt.Printf(
-			"[WARN] RecvHeatbeatNodeId %s, RecvHeatbeatNodeIP %s| currentLeaderNodeId %s, currentLeaderNodeIP %s",
-			leaderNodeID,
+			"[WARN] RecvHeatbeatNodeIP %s | currentLeaderNodeIP %s | My IP: %s",
 			ip,
-			leader.ID,
-			leader.IP,
+			*leader.IP,
+			*getMyself().IP,
 		)
 		return
 	}
@@ -248,6 +255,7 @@ func listenLeaderElection() {
 // Start leader election service;
 // Listen the election message and decide if I should participate the campaign
 func StartLeaderElectionService() {
+	fmt.Println("[INFO] StartLeaderElectionService")
 	listenLeaderElection()
 	listenLeaderVote()
 	leaderSendHeartBeat()
