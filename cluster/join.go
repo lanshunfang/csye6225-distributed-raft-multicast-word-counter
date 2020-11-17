@@ -22,7 +22,7 @@ func joinGroup() {
 			fmt.Printf("[INFO] Start to join group. Attempts left %v\n", maxAttempt)
 			requestJoinGroup()
 		} else {
-			fmt.Printf("[INFO] Already in the group Or I am a leader now. My IP %s\n", *getMyself().IP)
+			// fmt.Printf("[INFO] Already in the group Or I am a leader now. My IP %s\n", *getMyself().IP)
 			return
 		}
 
@@ -39,10 +39,8 @@ func requestJoinGroup() {
 
 func leaderAllowJoinGroup(senderNodeID, senderIP string) {
 
-	fmt.Printf("[INFO] Check If allow to join the group from %s. My IP: %s\n", senderIP, *getMyself().IP)
-
 	if !isIAmLeader() {
-		fmt.Printf("[INFO] Only Leader could allow new member join. I am not a leader. My IP: %s\n", *getMyself().IP)
+		// fmt.Printf("[INFO] Only Leader could allow new member join. I am not a leader. My IP: %s\n", *getMyself().IP)
 		return
 	}
 
@@ -59,6 +57,8 @@ func leaderAllowJoinGroup(senderNodeID, senderIP string) {
 	syncMembershipToFollowers(membership)
 
 	syncLog()
+
+	fmt.Printf("\n\n[INFO] Cluster updated. Now we have %v members in the cluster. Leader IP is: %s\n\n", len(myMembership.Members), GetLeaderIP())
 
 }
 

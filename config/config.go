@@ -10,14 +10,6 @@ var Envs = map[string]string{
 	"ENV_RPC_PORT":         "8081",
 }
 
-// var EnvPorts = map[string]string{
-
-// 	"ENV_PORT_MEMBERSHIP": "8080",
-
-// 	"ENV_PORT_LOGGER":    "10002",
-// 	"ENV_PORT_WORDCOUNT": "8081",
-// }
-
 type RPCDef struct {
 	Name string
 	Port string
@@ -45,10 +37,6 @@ var HttpRpcList = map[string]RPCDef{
 		Name: "Membership.UpdateMembership",
 		Port: "ENV_PORT_MEMBERSHIP",
 	},
-	// "MembershipForRPC.ReportLeaderIP": {
-	// 	Name: "MembershipForRPC.ReportLeaderIP",
-	// 	Port: "ENV_PORT_MEMBERSHIP",
-	// },
 
 	"RaftLikeLogger": {
 		Name: "RaftLikeLogger",
@@ -77,6 +65,5 @@ func initEnvs(defaultMap map[string]string) {
 }
 
 func init() {
-	// initEnvs(EnvPorts)
 	initEnvs(Envs)
 }
