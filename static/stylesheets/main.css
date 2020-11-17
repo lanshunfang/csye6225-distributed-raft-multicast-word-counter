@@ -1,0 +1,14 @@
+body {
+  color: #333;
+}
+
+.hide {
+  display: none;
+}
+
+.loading .uploading-indicator {
+  display: block;
+}
+.loading .result {
+  display: none;
+}

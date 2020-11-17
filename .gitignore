@@ -1,3 +1,6 @@
 node_modules
 lambdaFuncTarget.zip
 latest.zip
+__debug__bin
+oplog.gob
+/wordcounter

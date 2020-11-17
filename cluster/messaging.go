@@ -11,7 +11,23 @@ var sender *multicast.Sender
 
 var multicastAddr *string
 
+func printLog(msgType, topic, msg, senderIP string) {
+	if _, ok := multicast.MulticastTopicsHideLog[topic]; ok {
+		return
+	}
+	prefix := "Send"
+	suffix := ""
+	if msgType == "Listen" {
+		prefix = "Received"
+		suffix = "from IP " + senderIP
+	}
+	fmt.Printf("[INFO]>>>>MULTICAST>>>> "+prefix+" multicast topic %s, message: %s; %s\n", topic, msg, suffix)
+
+}
+
 func SendMulticast(topic, msg string) {
+
+	printLog("Send", topic, msg, "")
 
 	if sender == nil {
 		envAddr := config.Envs["ENV_MULTICAST_GROUP"]
@@ -23,7 +39,7 @@ func SendMulticast(topic, msg string) {
 	sender.Send(topic, msg)
 }
 
-func ListenMulticast(topic string, listener func(nodeID string, ip string, UDPAddr *net.UDPAddr)) {
+func ListenMulticast(topic string, listener func(nodeID string, senderIP string, UDPAddr *net.UDPAddr)) {
 	if multicastAddr == nil {
 		envAddr := config.Envs["ENV_MULTICAST_GROUP"]
 		multicastAddr = &envAddr
@@ -31,9 +47,14 @@ func ListenMulticast(topic string, listener func(nodeID string, ip string, UDPAd
 
 	go multicast.Register(
 		*multicastAddr,
-		func(topic string, payload string, ip string, UDPAddr *net.UDPAddr) {
-			fmt.Println("[INFO]Received topic: " + topic + " From IP " + ip)
-			listener(payload, ip, UDPAddr)
+		func(multicastTopic string, payload string, senderIP string, UDPAddr *net.UDPAddr) {
+			if multicastTopic != topic {
+				return
+			}
+
+			printLog("Listen", topic, payload, senderIP)
+
+			listener(payload, senderIP, UDPAddr)
 		},
 	)
 }

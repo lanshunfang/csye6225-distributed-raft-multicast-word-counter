@@ -2,15 +2,16 @@ package cluster
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"strconv"
 	"time"
 	"wordcounter/multicast"
+	"wordcounter/utils"
 )
 
-var lastHeartbeatTime time.Time = time.Now()
-var maxTimeout time.Duration = time.Duration(200*(1+200*rand.Float32())) * time.Microsecond
+var initTime = time.Now()
+var lastHeartbeatTime *time.Time = &initTime
+var maxTimeout time.Duration = time.Duration(1000*(1+utils.RandWithSeed().Float32())) * time.Millisecond
 var heartbeatFrequency time.Duration = 300 * time.Millisecond
 
 // map[term]votedLeaderID
@@ -18,8 +19,10 @@ var myVote = make(map[int]string)
 
 // map[term]map[voterIP]voterResult
 type voterVote struct {
-	voterIP     string
+	leaderID    string
+	leaderIP    string
 	voterNodeID string
+	voterIP     string
 	result      int
 }
 type LeaderElectionResult map[int]map[string]voterVote
@@ -28,7 +31,7 @@ var myLeaderElectionResult = make(LeaderElectionResult)
 
 func getMyTerm() int {
 	myself := getMyself()
-	return myself.Term
+	return *myself.Term
 }
 
 func getNewTerm() int {
@@ -38,47 +41,73 @@ func getNewTerm() int {
 // Periodically check if I should be leader
 func electMeIfLeaderDie() {
 
+	// wait for Join Group done
+	time.Sleep(5 * time.Second)
+
 	go func() {
 		for {
 
-			now := time.Now()
-
-			if now.Sub(lastHeartbeatTime) > maxTimeout {
-
-				raftLikeLogger := GetLogger()
-
-				SendMulticast(
-					multicast.MulticastTopics["ELECT_ME_AS_LEADER"],
-					multicast.JoinFields(
-						strconv.Itoa(getNewTerm()),
-						MyNodeID,
-						strconv.Itoa(raftLikeLogger.getCachedLatestOplog()),
-					),
-				)
+			if isIAmLeader() {
+				return
 			}
 
-			time.Sleep(300 * time.Microsecond)
+			max := lastHeartbeatTime.Add(maxTimeout)
+
+			if max.Before(time.Now()) {
+
+				fmt.Print("[INFO] TIME")
+				fmt.Print(max)
+				fmt.Print(time.Now())
+
+				electMeNow()
+				time.Sleep(3 * time.Second)
+			} else {
+				time.Sleep(300 * time.Microsecond)
+			}
 
 		}
 	}()
 
 }
 
-func voteLeader(requestNewTermStr, requestLeaderNodeId, requestLeaderLogOffsetStr, ip string) {
+func electMeNow() {
+
+	SendMulticast(
+		multicast.MulticastTopics["ELECT_ME_AS_LEADER"],
+		multicast.JoinFields(
+			strconv.Itoa(getNewTerm()),
+			MyNodeID,
+			strconv.Itoa(raftLikeLogger.getCachedLatestOplog()),
+		),
+	)
+}
+
+func voteLeader(requestNewTermStr, requestLeaderNodeID, requestLeaderLogOffsetStr, requestLeaderIP string) {
 
 	voteDecision := 1
 
 	newTerm, err := strconv.Atoi(requestNewTermStr)
 
+	if isIAmLeader() {
+		// if isIAmLeader() {
+		// fmt.Printf("  [INFO] Reject request from %s as I am already a leader. My IP: %s\n", requestLeaderIP, *getMyself().IP)
+		// electMeNow()
+		return
+	}
+
 	if err != nil {
-		fmt.Printf("[WARN] Invalid requested voting term: %s; Err: %s", termStr, err)
+		fmt.Printf(
+			"[WARN] Invalid requested voting term: %v; Err: %s\n",
+			newTerm,
+			err,
+		)
 		return
 	}
 
 	requestLeaderLogOffset, err := strconv.Atoi(requestLeaderLogOffsetStr)
 
 	if err != nil {
-		fmt.Printf("[WARN] Invalid requested voting LogOffset: %s; Err: %s", requestLeaderLogOffsetStr, err)
+		fmt.Printf("[WARN] Invalid requested voting LogOffset: %s; Err: %s\n", requestLeaderLogOffsetStr, err)
 		return
 	}
 
@@ -88,10 +117,10 @@ func voteLeader(requestNewTermStr, requestLeaderNodeId, requestLeaderLogOffsetSt
 
 	isAlreadyVote := ok
 	if isAlreadyVote {
-		if votedLeaderID != requestLeaderNodeId || requestLeaderLogOffset < raftLikeLogger.getCachedLatestOplog() {
+		if votedLeaderID != requestLeaderNodeID || requestLeaderLogOffset < raftLikeLogger.getCachedLatestOplog() {
 			voteDecision = 0
 		}
-	} else if requestLeaderNodeId != MyNodeID {
+	} else if requestLeaderNodeID != MyNodeID {
 		if err != nil {
 			voteDecision = 0
 		}
@@ -105,18 +134,24 @@ func voteLeader(requestNewTermStr, requestLeaderNodeId, requestLeaderLogOffsetSt
 	}
 
 	if voteDecision == 1 {
-		myVote[newTerm] = requestLeaderNodeId
+		myVote[newTerm] = requestLeaderNodeID
 	}
 
-	voteResultSend(newTerm, requestLeaderNodeId, voteDecision)
+	voteResultSend(newTerm, requestLeaderNodeID, requestLeaderIP, voteDecision)
 }
 
-func voteResultSend(requestTerm int, requestLeaderNodeId string, voteResult int) {
+func voteResultSend(
+	requestTerm int,
+	requestLeaderNodeID string,
+	requestLeaderIP string,
+	voteResult int,
+) {
 	SendMulticast(
 		multicast.MulticastTopics["VOTE_LEADER"],
 		multicast.JoinFields(
 			strconv.Itoa(requestTerm),
-			requestLeaderNodeId,
+			requestLeaderNodeID,
+			requestLeaderIP,
 			strconv.Itoa(voteResult),
 			MyNodeID,
 		),
@@ -126,7 +161,8 @@ func voteResultSend(requestTerm int, requestLeaderNodeId string, voteResult int)
 func leaderSendHeartBeat() {
 	go func() {
 		for {
-			if IsIAmLeader() {
+			if isIAmLeader() {
+				*lastHeartbeatTime = time.Now()
 				SendMulticast(multicast.MulticastTopics["LEADER_HEARTBEAT"], MyNodeID)
 			}
 			time.Sleep(heartbeatFrequency)
@@ -136,7 +172,7 @@ func leaderSendHeartBeat() {
 
 }
 
-func updateVoteResult(newTermStr, leaderID, result, voterNodeID, voterIP string) {
+func updateVoteResult(newTermStr, leaderID, leaderIP, result, voterNodeID, voterIP string) {
 	newTermInt, err := strconv.Atoi(newTermStr)
 	if err != nil || newTermInt != getNewTerm() || leaderID != MyNodeID {
 		return
@@ -148,14 +184,18 @@ func updateVoteResult(newTermStr, leaderID, result, voterNodeID, voterIP string)
 
 	resultInt, err := strconv.Atoi(result)
 
-	myLeaderElectionResult[newTermInt][voterIP] = voterVote{
+	currentVote := voterVote{
+		leaderID:    leaderID,
+		leaderIP:    leaderIP,
 		voterIP:     voterIP,
 		voterNodeID: voterNodeID,
 		result:      resultInt,
 	}
 
+	myLeaderElectionResult[newTermInt][voterIP] = currentVote
+
 	if hasReceivedMajorityVote(newTermInt) {
-		updateMeAsLeaderForNewTerm(newTermInt)
+		updateMeAsLeaderForNewTerm(newTermInt, currentVote)
 	}
 
 }
@@ -175,27 +215,30 @@ func hasReceivedMajorityVote(newTerm int) bool {
 }
 
 func updateLeaderHeartbeat(leaderNodeID, ip string) {
-	if !IsLeader(leaderNodeID, ip) {
+	*lastHeartbeatTime = time.Now()
+	if isIAmLeader() {
+		// fmt.Printf("[WARN] I'm leader. I don't accept other heartbeats. My IP: %s; Heartbeat IP: %s \n", *getMyself().IP, ip)
+
+		return
+	}
+	if !isNodeLeader(leaderNodeID, ip) {
 		fmt.Println("[WARN] Receive a leader heartbeat that is not from current leader")
 		leader := getLeader()
 		fmt.Printf(
-			"[WARN] RecvHeatbeatNodeId %s, RecvHeatbeatNodeIP %s| currentLeaderNodeId %s, currentLeaderNodeIP %s",
-			leaderNodeID,
+			"[WARN] RecvHeatbeatNodeIP %s | currentLeaderNodeIP %s | My IP: %s",
 			ip,
-			leader.ID,
-			leader.IP,
+			*leader.IP,
+			*getMyself().IP,
 		)
 		return
 	}
 
-	lastHeartbeatTime = time.Now()
 }
 
 func listenLeaderHeartbeat() {
 	ListenMulticast(
 		multicast.MulticastTopics["LEADER_HEARTBEAT"],
 		func(leaderNodeID string, ip string, UDPAddr *net.UDPAddr) {
-
 			updateLeaderHeartbeat(leaderNodeID, ip)
 		},
 	)
@@ -204,24 +247,30 @@ func listenLeaderHeartbeat() {
 func listenLeaderVote() {
 	ListenMulticast(
 		multicast.MulticastTopics["VOTE_LEADER"],
-		func(msg string, ip string, UDPAddr *net.UDPAddr) {
+		func(msg string, senderIP string, UDPAddr *net.UDPAddr) {
 			msgSplit := multicast.GetFields(msg)
-			updateVoteResult(msgSplit[0], msgSplit[1], msgSplit[2], msgSplit[3], ip)
+			updateVoteResult(msgSplit[0], msgSplit[1], msgSplit[2], msgSplit[3], msgSplit[4], senderIP)
 		},
 	)
 }
 func listenLeaderElection() {
 	ListenMulticast(
 		multicast.MulticastTopics["ELECT_ME_AS_LEADER"],
-		func(msg string, ip string, UDPAddr *net.UDPAddr) {
+		func(msg string, senderIP string, UDPAddr *net.UDPAddr) {
 			msgSplit := multicast.GetFields(msg)
-			voteLeader(msgSplit[0], msgSplit[1], msgSplit[2], ip)
+			voteLeader(msgSplit[0], msgSplit[1], msgSplit[2], senderIP)
 		},
 	)
 }
 
+// StartLeaderElectionService ...
+// Start leader election service;
+// Listen the election message and decide if I should participate the campaign
 func StartLeaderElectionService() {
+	fmt.Println("[INFO] StartLeaderElectionService")
 	listenLeaderElection()
+	listenLeaderVote()
+	listenLeaderHeartbeat()
 	leaderSendHeartBeat()
 	electMeIfLeaderDie()
 }

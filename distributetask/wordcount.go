@@ -2,12 +2,16 @@ package distributetask
 
 import (
 	"fmt"
+	"io/ioutil"
+	"mime/multipart"
+	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
-	"sync"
 	"wordcounter/cluster"
 	"wordcounter/config"
 	"wordcounter/rpc"
+	"wordcounter/utils"
 )
 
 type WordCount struct {
@@ -15,26 +19,33 @@ type WordCount struct {
 }
 
 type CountDescriptor struct {
-	logOffset, payloadByteOffset, countlength int
+	LogOffset, PayloadByteOffset, Countlength int
 }
+
+var wc *WordCount
 
 func (wc *WordCount) countIt(desc CountDescriptor) (int, error) {
 	logger := cluster.GetLogger()
-	oplog, err := logger.GetOplogByOffset(desc.logOffset)
+	oplog, err := cluster.GetOplogByOffset(logger, desc.LogOffset)
 	if err != nil {
 		return 0, err
 	}
 
 	// bytes := []byte(fmt.Sprintf("%v", oplog.Payload.(interface{})))
-	bytes := []byte(fmt.Sprintf("%v", oplog.Payload))
+	// str := fmt.Sprintf("%v", oplog.Payload.(interface{}))
+	bytes, err := utils.GetBytes(oplog.Payload)
+	if err != nil {
+		return 0, err
+	}
+
 	lenBytes := len(bytes)
 
-	if desc.payloadByteOffset > lenBytes-1 {
+	payloadByteOffset := desc.PayloadByteOffset
+	if desc.PayloadByteOffset > lenBytes {
 		return 0, nil
 	}
 
-	payloadByteOffset := desc.payloadByteOffset
-	payloadByteEnd := payloadByteOffset + desc.countlength
+	payloadByteEnd := payloadByteOffset + desc.Countlength
 	if payloadByteEnd > lenBytes {
 		payloadByteEnd = lenBytes
 	}
@@ -50,9 +61,9 @@ func (wc *WordCount) countIt(desc CountDescriptor) (int, error) {
 
 }
 
-func NewWordCount() WordCount {
+func newWordCount() *WordCount {
 	inst := WordCount{}
-	return inst
+	return &inst
 }
 func (wc *WordCount) Count(desc CountDescriptor, replyWordCount *int) error {
 	count, err := wc.countIt(desc)
@@ -64,20 +75,41 @@ func (wc *WordCount) rpcRegister() {
 	rpc.RegisterType(wc)
 }
 
-func (wc *WordCount) HTTPHandle(text string, reply *int) error {
+// HTTPProxyWordCount ...
+// HTTP outlet for client incoming word counting request
+func HTTPProxyWordCount(file multipart.File, w http.ResponseWriter, r *http.Request) (int, error) {
+
+	fmt.Println("[INFO] Accepting request to process word counting.")
 
 	logger := cluster.GetLogger()
-	oplog := logger.AppendOplog(text)
 
-	*reply = wc.Runtask(oplog)
+	content, err := ioutil.ReadAll(file)
 
-	return nil
+	if err != nil {
+		return 0, err
+	}
+
+	oplog, err := cluster.AppendOplog(logger, &content)
+
+	if err != nil {
+		return 500, err
+	}
+
+	res := runtask(oplog)
+
+	w.Write([]byte(strconv.Itoa(res)))
+
+	return 200, nil
 
 }
 
-func (wc *WordCount) Runtask(oplog cluster.Oplog) int {
+func runtask(oplog cluster.Oplog) int {
+
 	membership := cluster.GetMembership()
 	countMembers := len(membership.Members)
+
+	fmt.Printf("[INFO] Run task with log offset %v \n", oplog.LogOffset)
+
 	payloadBytes := []byte(fmt.Sprintf("%v", oplog.Payload))
 	countPayloadBytes := len(payloadBytes)
 	eachShare := countPayloadBytes / countMembers
@@ -87,49 +119,70 @@ func (wc *WordCount) Runtask(oplog cluster.Oplog) int {
 
 	reportChan := make(chan int)
 
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 
-	membership.ForEachMember(
+	cluster.ForEachMember(
+		membership,
 		func(member cluster.Member, isLeader bool) {
 
-			wg.Add(1)
-			go func(wg *sync.WaitGroup, member *cluster.Member) {
-				replyWordCount, err := wc.callRPC(member.IP, offset)
+			// wg.Add(1)
+			// go func(offset int, wg *sync.WaitGroup, member *cluster.Member) {
+			go func(offset int, member *cluster.Member) {
+				fmt.Printf("[INFO] Member IP %s is processing task at log offset %v \n", *member.IP, oplog.LogOffset)
+
+				replyWordCount, err := wc.callRPC(
+					*member.IP,
+					CountDescriptor{
+						LogOffset:         oplog.LogOffset,
+						Countlength:       eachShare,
+						PayloadByteOffset: offset,
+					},
+				)
 				if err != nil {
+					fmt.Printf("[INFO] Member IP %s encountered an error on processing task at log offset %v \n", *member.IP, oplog.LogOffset)
+					fmt.Print(err)
+
 					replyWordCount = 0
 				}
+
 				reportChan <- replyWordCount
-				wg.Done()
-			}(&wg, &member)
+
+			}(offset, &member)
 
 			offset += eachShare
 		},
 	)
 
-	wg.Wait()
-
-	for v := range reportChan {
-		ret += v
+	for i := 0; i < countMembers; i++ {
+		ret += <-reportChan
 	}
 
 	return ret
 }
 
-func (wc *WordCount) callRPC(ip string, logOffset int) (int, error) {
+func (wc *WordCount) callRPC(ip string, countDescriptor CountDescriptor) (int, error) {
 
 	replyWordCount := 0
 
 	err := rpc.CallRPC(
 		ip,
 		config.HttpRpcList["WordCount.Count"].Name,
-		logOffset,
+		countDescriptor,
 		&replyWordCount,
 	)
 
-	return replyWordCount, err
+	if err != nil {
+		return 0, err
+	}
+
+	return replyWordCount, nil
+
 }
 
+// StartWordCountService ...
+// Start word count service that offer distributed word counting in the cluster
 func StartWordCountService() {
-	wc := NewWordCount()
+	fmt.Println("[INFO] StartWordCountService")
+	wc = newWordCount()
 	wc.rpcRegister()
 }

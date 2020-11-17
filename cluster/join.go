@@ -4,26 +4,29 @@ import (
 	"fmt"
 	"net"
 	"time"
+	"wordcounter/config"
 	"wordcounter/multicast"
 )
 
 // JoinGroup ...
 // Join Cluster group
-func JoinGroup() {
+func joinGroup() {
 
-	maxAttempt := 10
+	fmt.Printf("[INFO] Join Group at %s\n", config.Envs["ENV_MULTICAST_GROUP"])
 
 	membership := GetMembership()
 
-	for ; maxAttempt > 0; maxAttempt-- {
-		_, ok := membership.Members[MyNodeID]
-		if !ok {
+	for maxAttempt := 5; maxAttempt > 0; maxAttempt-- {
+
+		if len(membership.Members) < 2 && !isIAmLeader() {
+			fmt.Printf("[INFO] Start to join group. Attempts left %v\n", maxAttempt)
 			requestJoinGroup()
 		} else {
+			// fmt.Printf("[INFO] Already in the group Or I am a leader now. My IP %s\n", *getMyself().IP)
 			return
 		}
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 
 	fmt.Print("[ERROR] Unable to join Group after max attempts")
@@ -34,24 +37,42 @@ func requestJoinGroup() {
 	SendMulticast(multicast.MulticastTopics["JOIN_GROUP"], MyNodeID)
 }
 
-func leaderAllowJoinGroup(nodeID, ip string) {
+func leaderAllowJoinGroup(senderNodeID, senderIP string) {
 
-	if !IsIAmLeader() {
+	if !isIAmLeader() {
+		// fmt.Printf("[INFO] Only Leader could allow new member join. I am not a leader. My IP: %s\n", *getMyself().IP)
 		return
 	}
 
+	if senderNodeID == getMyself().ID {
+		return
+	}
+
+	fmt.Printf("[INFO] Allow a new IP %s to join my group. My IP: %s \n", senderIP, *getMyself().IP)
+
 	membership := GetMembership()
-	membership.AddNewMember(nodeID, ip)
+
+	addNewMember(membership, senderNodeID, senderIP)
+
+	syncMembershipToFollowers(membership)
+
 	syncLog()
+
+	fmt.Printf("\n\n[INFO] Cluster updated. Now we have %v members in the cluster. Leader IP is: %s\n\n", len(myMembership.Members), GetLeaderIP())
 
 }
 
+// StartJoinGroupService ...
+// Join cluster via Multicast IP
 func StartJoinGroupService() {
+	fmt.Println("[INFO] StartJoinGroupService")
 	ListenMulticast(
 		multicast.MulticastTopics["JOIN_GROUP"],
-		func(nodeID string, ip string, UDPAddr *net.UDPAddr) {
-			leaderAllowJoinGroup(nodeID, ip)
+		func(senderNodeID string, senderIP string, UDPAddr *net.UDPAddr) {
+			leaderAllowJoinGroup(senderNodeID, senderIP)
 		},
 	)
-	JoinGroup()
+	go func() {
+		joinGroup()
+	}()
 }

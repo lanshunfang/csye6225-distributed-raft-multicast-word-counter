@@ -21,6 +21,10 @@ var MulticastTopics = map[string]string{
 	"LEADER_HEARTBEAT":   "LEADER_HEARTBEAT",
 }
 
+var MulticastTopicsHideLog = map[string]string{
+	"LEADER_HEARTBEAT": "LEADER_HEARTBEAT",
+}
+
 const payloadFieldSplitter string = "|"
 
 func JoinFields(fields ...string) string {
@@ -61,7 +65,7 @@ func GetSender(multicastGroup string) Sender {
 // @param multicastGroup - See #GetSender
 // @example
 //		```golang
-//		multicast.Register("239.0.0.1:10000", func (msg string, ip string, UDPAddr *net.UDPAddr) {
+//		multicast.Register("239.0.0.1:10000", func (msg string, senderIP string, UDPAddr *net.UDPAddr) {
 // 			fmt.Print("Received Message: " + msg + " From IP " + ip)
 //		})
 //		```
