@@ -37,8 +37,7 @@ type CountDescriptor struct {
 var wc *WordCount
 
 func (wc *WordCount) countIt(desc CountDescriptor) (int, error) {
-	logger := cluster.GetLogger()
-	oplog, err := cluster.GetOplogByOffset(logger, desc.LogOffset)
+	oplog, err := cluster.GetOplogByOffset(desc.LogOffset)
 	if err != nil {
 		return 0, err
 	}
@@ -101,7 +100,7 @@ func HTTPProxyWordCount(file multipart.File, w http.ResponseWriter, r *http.Requ
 		return 0, err
 	}
 
-	oplog, err := cluster.AppendOplog(logger, &content)
+	oplog, err := cluster.AppendOplog(logger, &content, config.HTTPRPCList["WordCount.Count"].Name)
 
 	if err != nil {
 		return 500, err

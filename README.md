@@ -40,7 +40,7 @@
 - call `./bin/dockerrun.sh 2` to start a 2-member docker container cluster (change 2 to N for N-member cluster)
 - Open `http://ANY_DOCKER_CONTAINER_IP:3000` in Chrome
   - `ANY_DOCKER_CONTAINER_IP` is the IP of any members in the cluster that is accessible
-  - In the docker cluster, we only expose port `3000` of the first container to its host
+  - In the docker cluster started by `./bin/dockerrun.sh`, we only expose port `3000` of the first container to its host at `http://localhost:3000/`
 - Upload a text file and view the result in the browser
 
 ## Deploy in cloud computing instances

@@ -111,6 +111,11 @@ func updateMeAsLeaderForNewTerm(newTerm int, latestVote voterVote) {
 
 }
 
+// GetMyIP ...
+// Get my IP
+func GetMyIP() string {
+	return *getMyself().IP
+}
 func getMyself() *Member {
 	return myMembership.Members[MyNodeID]
 }
@@ -212,7 +217,7 @@ func (m *Membership) UpdateMembership(newMembership Membership, replyNodeID *str
 	// myMembership.Leader = newMembershipTranformed.Leader
 	*replyNodeID = MyNodeID
 
-	fmt.Printf("[INFO] Follower Membership updated. New Leader IP: %v", *GetMembership().Leader.IP)
+	fmt.Printf("[INFO] Follower Membership updated. New Leader IP: %v\n", *GetMembership().Leader.IP)
 
 	return nil
 }

@@ -31,11 +31,12 @@ func CallRPC(remoteHost, methodName string, payload interface{}, replyPointer in
 		return err
 	}
 
+	fmt.Printf("[INFO] Call RPC %s in node %s \n", methodName, remoteHost)
 	err = client.Call(methodName, payload, replyPointer)
 
 	if err != nil {
 
-		fmt.Println("[ERROR] RPC Call Error", err)
+		fmt.Printf("[ERROR] RPC Call %s to %s with Error %s\n", methodName, remoteHost, err)
 		return err
 	}
 

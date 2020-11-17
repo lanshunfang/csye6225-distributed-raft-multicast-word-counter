@@ -57,11 +57,6 @@ func electMeIfLeaderDie() {
 			max := lastHeartbeatTime.Add(maxTimeout)
 
 			if max.Before(time.Now()) {
-
-				fmt.Print("[INFO] TIME")
-				fmt.Print(max)
-				fmt.Print(time.Now())
-
 				electMeNow()
 				time.Sleep(3 * time.Second)
 			} else {
